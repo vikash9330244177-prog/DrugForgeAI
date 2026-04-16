@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DrugForge AI - PLIP Results</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #f4f8fb;
+            --card: #ffffff;
+            --card-soft: #f8fbfd;
+            --primary: #2f6f8f;
+            --primary-dark: #255a74;
+            --secondary: #6c8ea3;
+            --secondary-dark: #59798d;
+            --accent: #4f8a6f;
+            --accent-dark: #3d6f58;
+            --text: #243746;
+            --muted: #627786;
+            --border: #d9e5ec;
+            --badge-bg: #e7f1f6;
+            --badge-text: #2b607c;
+            --summary-bg: #eef7fb;
+            --summary-border: #78aeca;
+            --code-bg: #f8fbfd;
+            --shadow: 0 10px 28px rgba(36, 55, 70, 0.08);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: linear-gradient(180deg, #f7fbfd 0%, #eef4f8 100%);
+            color: var(--text);
+            margin: 0;
+            padding: 24px;
+        }
+
+        .page-wrap {
+            max-width: 1380px;
+            margin: 0 auto;
+        }
+
+        .main-card {
+            background: var(--card);
+            border-radius: 18px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+            overflow: hidden;
+        }
+
+        .hero {
+            background: linear-gradient(135deg, #e9f4f8 0%, #f9fcfd 100%);
+            border-bottom: 1px solid var(--border);
+            padding: 30px 34px 24px;
+        }
+
+        .hero h1 {
+            color: var(--primary);
+            font-weight: 700;
+            margin-bottom: 8px;
+            font-size: 2rem;
+        }
+
+        .hero p {
+            margin-bottom: 0;
+            color: var(--muted);
+            line-height: 1.6;
+        }
+
+        .section {
+            padding: 24px 32px;
+            border-bottom: 1px solid #edf2f7;
+        }
+
+        .section:last-child {
+            border-bottom: none;
+        }
+
+        .section-title {
+            color: var(--primary);
+            font-weight: 700;
+            margin-bottom: 18px;
+            font-size: 1.18rem;
+        }
+
+        .summary-card {
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            background: linear-gradient(180deg, #ffffff 0%, #fbfdfe 100%);
+            padding: 18px;
+            height: 100%;
+            box-shadow: 0 4px 14px rgba(36, 55, 70, 0.04);
+        }
+
+        .metric-label {
+            font-size: 0.92rem;
+            color: var(--muted);
+            margin-bottom: 4px;
+        }
+
+        .metric-value {
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: var(--text);
+            word-break: break-word;
+        }
+
+        .download-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px;
+        }
+
+        .download-grid .btn {
+            width: 100%;
+        }
+
+        .plot-card {
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            background: #fff;
+            padding: 14px;
+            height: 100%;
+        }
+
+        .plot-card img {
+            width: 100%;
+            border-radius: 10px;
+            border: 1px solid #e7eef7;
+            background: #fff;
+            margin-bottom: 12px;
+            padding: 6px;
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: #fff;
+            padding: 8px;
+        }
+
+        pre.report-box {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            margin: 0;
+            max-height: 520px;
+            overflow: auto;
+            color: #2d4353;
+            line-height: 1.6;
+        }
+
+        .badge-soft {
+            background: var(--badge-bg);
+            color: var(--badge-text);
+            padding: 0.5rem 0.8rem;
+            border-radius: 999px;
+            font-weight: 600;
+            display: inline-block;
+            margin-right: 8px;
+            margin-bottom: 8px;
+        }
+
+        .key-list {
+            margin: 0;
+            padding-left: 18px;
+        }
+
+        .key-list li {
+            margin-bottom: 7px;
+            color: #334b5c;
+        }
+
+        .subtle {
+            color: var(--muted);
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+
+        .back-links .btn {
+            margin-right: 8px;
+            margin-bottom: 8px;
+        }
+
+        .btn {
+            border-radius: 10px;
+            font-weight: 500;
+            padding: 0.72rem 1.1rem;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            border-color: var(--primary);
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-dark);
+            border-color: var(--primary-dark);
+            color: #fff;
+        }
+
+        .btn-info {
+            background-color: var(--secondary);
+            border-color: var(--secondary);
+            color: #fff;
+        }
+
+        .btn-info:hover {
+            background-color: var(--secondary-dark);
+            border-color: var(--secondary-dark);
+            color: #fff;
+        }
+
+        .btn-success {
+            background-color: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+        }
+
+        .btn-success:hover {
+            background-color: var(--accent-dark);
+            border-color: var(--accent-dark);
+            color: #fff;
+        }
+
+        .btn-dark {
+            background-color: #455d6d;
+            border-color: #455d6d;
+            color: #fff;
+        }
+
+        .btn-dark:hover {
+            background-color: #354a58;
+            border-color: #354a58;
+            color: #fff;
+        }
+
+        .btn-outline-primary {
+            color: var(--primary);
+            border-color: var(--primary);
+        }
+
+        .btn-outline-primary:hover {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: #fff;
+        }
+
+        .btn-outline-secondary {
+            color: var(--secondary);
+            border-color: var(--secondary);
+        }
+
+        .btn-outline-secondary:hover {
+            background: var(--secondary);
+            border-color: var(--secondary);
+            color: #fff;
+        }
+
+        .table th {
+            background-color: #edf5f8;
+            color: var(--text);
+            border-color: var(--border) !important;
+            white-space: nowrap;
+        }
+
+        .table td {
+            color: #334b5c;
+            border-color: #e3edf2 !important;
+            vertical-align: middle;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 14px;
+            }
+
+            .hero {
+                padding: 24px 18px 20px;
+            }
+
+            .section {
+                padding: 20px 18px;
+            }
+
+            .hero h1 {
+                font-size: 1.6rem;
+            }
+
+            .download-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="page-wrap">
+    <div class="main-card">
+        <div class="hero">
+            <div class="d-flex flex-wrap justify-content-between align-items-start">
+                <div>
+                    <h1>Protein-Ligand Interaction Analysis</h1>
+                    <p>
+                        Detailed interaction report for the uploaded complex generated by the DrugForge AI PLIP module.
+                    </p>
+                </div>
+                <div class="text-right mt-2 mt-md-0">
+                    <span class="badge-soft">Job ID: {{ job_id }}</span>
+                    {% if ligand_code %}
+                    <span class="badge-soft">Ligand Code: {{ ligand_code }}</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Overview</div>
+            <div class="row">
+                <div class="col-md-3 mb-3">
+                    <div class="summary-card">
+                        <div class="metric-label">Interaction Rows</div>
+                        <div class="metric-value">{{ total_rows or 0 }}</div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="summary-card">
+                        <div class="metric-label">Columns Reported</div>
+                        <div class="metric-value">{{ total_columns or 0 }}</div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="summary-card">
+                        <div class="metric-label">Total Interactions</div>
+                        <div class="metric-value">{{ summary_data.total_interactions if summary_data and summary_data.total_interactions is defined else total_rows or 0 }}</div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="summary-card">
+                        <div class="metric-label">Unique Protein Residues</div>
+                        <div class="metric-value">{{ summary_data.unique_protein_residues_involved if summary_data and summary_data.unique_protein_residues_involved is defined else '-' }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="subtle">
+                This page presents summary metrics, interaction counts, downloadable files, plots, and the complete interaction table returned by the backend workflow.
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Downloads</div>
+            <div class="download-grid">
+                {% if interactions_download_url %}<a class="btn btn-primary" href="{{ interactions_download_url }}">Download Interactions CSV</a>{% endif %}
+                {% if counts_download_url %}<a class="btn btn-primary" href="{{ counts_download_url }}">Download Interaction Counts CSV</a>{% endif %}
+                {% if summary_download_url %}<a class="btn btn-info" href="{{ summary_download_url }}">Download Summary JSON</a>{% endif %}
+                {% if report_download_url %}<a class="btn btn-info" href="{{ report_download_url }}">Download Text Report</a>{% endif %}
+                {% if interaction_plot_download_url %}<a class="btn btn-success" href="{{ interaction_plot_download_url }}">Download Main Plot</a>{% endif %}
+                {% if secondary_plot_download_url %}<a class="btn btn-success" href="{{ secondary_plot_download_url }}">Download Secondary Plot</a>{% endif %}
+                {% if job_zip_download_url %}<a class="btn btn-dark" href="{{ job_zip_download_url }}">Download Complete PLIP Job ZIP</a>{% endif %}
+            </div>
+        </div>
+
+        {% if summary_data %}
+        <div class="section">
+            <div class="section-title">Summary Details</div>
+            <div class="row">
+                <div class="col-lg-6 mb-3">
+                    <div class="summary-card">
+                        <h5 class="mb-3">Ligand Details</h5>
+                        <ul class="key-list">
+                            <li><strong>Ligand Residue Names:</strong>
+                                {% if summary_data.ligand_residue_names %}
+                                    {{ summary_data.ligand_residue_names | join(', ') }}
+                                {% else %}-{% endif %}
+                            </li>
+                            <li><strong>Ligand Chains:</strong>
+                                {% if summary_data.ligand_chains %}
+                                    {{ summary_data.ligand_chains | join(', ') }}
+                                {% else %}-{% endif %}
+                            </li>
+                            <li><strong>Ligand Residue IDs:</strong>
+                                {% if summary_data.ligand_residue_ids %}
+                                    {{ summary_data.ligand_residue_ids | join(', ') }}
+                                {% else %}-{% endif %}
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="col-lg-6 mb-3">
+                    <div class="summary-card">
+                        <h5 class="mb-3">Interaction Type Counts</h5>
+                        {% if summary_data.interaction_type_counts %}
+                            {% for key, value in summary_data.interaction_type_counts.items() %}
+                                <span class="badge-soft">{{ key }}: {{ value }}</span>
+                            {% endfor %}
+                        {% else %}
+                            <div class="subtle">No interaction counts available.</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            {% if summary_data.top_contact_residues %}
+            <div class="summary-card mt-2">
+                <h5 class="mb-3">Top Contact Residues</h5>
+                <div class="table-wrap">
+                    <table class="table table-sm table-striped table-bordered mb-0">
+                        <thead>
+                            <tr>
+                                <th>Residue</th>
+                                <th>Count</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for item in summary_data.top_contact_residues %}
+                            <tr>
+                                <td>{{ item.residue }}</td>
+                                <td>{{ item.count }}</td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if interaction_plot_url or secondary_plot_url %}
+        <div class="section">
+            <div class="section-title">Plots</div>
+            <div class="row">
+                {% if interaction_plot_url %}
+                <div class="col-lg-6 mb-3">
+                    <div class="plot-card">
+                        <h5 class="mb-3">Primary Interaction Plot</h5>
+                        <img src="{{ interaction_plot_url }}" alt="Primary PLIP plot">
+                        {% if interaction_plot_download_url %}
+                        <a href="{{ interaction_plot_download_url }}" class="btn btn-info btn-sm">Download Plot</a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+                {% if secondary_plot_url %}
+                <div class="col-lg-6 mb-3">
+                    <div class="plot-card">
+                        <h5 class="mb-3">Secondary Interaction Plot</h5>
+                        <img src="{{ secondary_plot_url }}" alt="Secondary PLIP plot">
+                        {% if secondary_plot_download_url %}
+                        <a href="{{ secondary_plot_download_url }}" class="btn btn-info btn-sm">Download Plot</a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if counts_table %}
+        <div class="section">
+            <div class="section-title">Interaction Counts Table</div>
+            <div class="table-wrap">
+                {{ counts_table|safe }}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if interactions_table %}
+        <div class="section">
+            <div class="section-title">Detailed Interactions Table</div>
+            <div class="table-wrap">
+                {{ interactions_table|safe }}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if report_text %}
+        <div class="section">
+            <div class="section-title">Text Report</div>
+            <pre class="report-box">{{ report_text }}</pre>
+        </div>
+        {% endif %}
+
+        <div class="section">
+            <div class="section-title">Navigation</div>
+            <div class="back-links">
+                <a href="{{ url_for('plip_analysis_page') }}" class="btn btn-outline-primary">Run Another PLIP Analysis</a>
+                <a href="{{ url_for('index') }}#pills-plip" class="btn btn-outline-secondary">Back to PLIP Tab</a>
+                <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">Back to Home</a>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

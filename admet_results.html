@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DrugForge AI - ADMET Prediction Results</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #f4f8fb;
+            --card: #ffffff;
+            --card-soft: #f8fbfd;
+            --primary: #2f6f8f;
+            --primary-dark: #255a74;
+            --secondary: #6c8ea3;
+            --success: #4f8a6f;
+            --success-dark: #3d6f58;
+            --text: #243746;
+            --muted: #627786;
+            --border: #d9e5ec;
+            --summary-bg: #eef7fb;
+            --summary-border: #78aeca;
+            --note-bg: #fdf8ee;
+            --note-border: #d7a85d;
+            --table-head: #edf5f8;
+            --shadow: 0 10px 28px rgba(36, 55, 70, 0.08);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: linear-gradient(180deg, #f7fbfd 0%, #eef4f8 100%);
+            color: var(--text);
+            margin: 0;
+            padding: 24px;
+        }
+
+        .page-container {
+            max-width: 1320px;
+            margin: 0 auto;
+            background-color: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+
+        .hero {
+            background: linear-gradient(135deg, #e9f4f8 0%, #f9fcfd 100%);
+            padding: 32px 36px 24px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .hero h1 {
+            margin: 0;
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary);
+            text-align: center;
+        }
+
+        .hero-subtitle {
+            margin-top: 10px;
+            text-align: center;
+            color: var(--muted);
+            font-size: 0.98rem;
+        }
+
+        .content-wrap {
+            padding: 28px 32px 32px;
+        }
+
+        .top-actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+        }
+
+        .btn {
+            font-weight: 500;
+            padding: 0.72rem 1.2rem;
+            border-radius: 10px;
+            border: none;
+            transition: all 0.2s ease;
+            box-shadow: none;
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-dark);
+            color: #fff;
+        }
+
+        .btn-secondary {
+            background-color: var(--secondary);
+            color: #fff;
+        }
+
+        .btn-secondary:hover {
+            background-color: #59798d;
+            color: #fff;
+        }
+
+        .btn-success {
+            background-color: var(--success);
+            color: #fff;
+        }
+
+        .btn-success:hover {
+            background-color: var(--success-dark);
+            color: #fff;
+        }
+
+        .section-box {
+            background-color: var(--card-soft);
+            border: 1px solid var(--border);
+            padding: 1.25rem;
+            border-radius: 14px;
+            margin-bottom: 1.4rem;
+        }
+
+        .section-box h2,
+        .highlight-note h3 {
+            color: var(--primary);
+            font-weight: 700;
+        }
+
+        .summary-box {
+            background-color: var(--summary-bg);
+            border-left: 5px solid var(--summary-border);
+            padding: 1rem 1.1rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+        }
+
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 14px;
+            margin-top: 1rem;
+        }
+
+        .meta-item {
+            background: #ffffff;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem;
+        }
+
+        .meta-item strong {
+            display: block;
+            color: var(--text);
+            margin-bottom: 0.35rem;
+            font-size: 0.95rem;
+        }
+
+        .meta-item span {
+            color: var(--muted);
+            font-size: 0.96rem;
+        }
+
+        .highlight-note {
+            background-color: var(--note-bg);
+            border-left: 5px solid var(--note-border);
+            padding: 1rem 1.1rem;
+            border-radius: 12px;
+            margin-bottom: 1.4rem;
+        }
+
+        .small-text {
+            font-size: 0.95rem;
+            color: var(--muted);
+            line-height: 1.6;
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: #fff;
+            padding: 6px;
+        }
+
+        .table-responsive {
+            margin-top: 1rem;
+        }
+
+        .table {
+            margin-bottom: 0;
+            background: #fff;
+        }
+
+        .table th {
+            background-color: var(--table-head);
+            white-space: nowrap;
+            color: var(--text);
+            font-weight: 600;
+            border-color: var(--border) !important;
+        }
+
+        .table td {
+            color: #334b5c;
+            border-color: #e3edf2 !important;
+            vertical-align: middle;
+        }
+
+        .footer-note {
+            margin-top: 1.5rem;
+            color: var(--muted);
+            font-size: 0.92rem;
+            text-align: center;
+            padding-top: 6px;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 14px;
+            }
+
+            .hero {
+                padding: 24px 20px 18px;
+            }
+
+            .content-wrap {
+                padding: 20px 18px 24px;
+            }
+
+            .hero h1 {
+                font-size: 1.6rem;
+            }
+
+            .top-actions {
+                flex-direction: column;
+            }
+
+            .top-actions .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page-container">
+        <div class="hero">
+            <h1>ADMET Prediction Results</h1>
+            <div class="hero-subtitle">
+                Review pharmacokinetic and toxicity predictions generated by DrugForge AI.
+            </div>
+        </div>
+
+        <div class="content-wrap">
+            <div class="top-actions">
+                <a href="{{ url_for('index') }}" class="btn btn-primary">Back to DrugForge AI</a>
+                <a href="{{ url_for('admet_page') }}" class="btn btn-secondary">Run Another ADMET Prediction</a>
+                <a href="{{ download_url }}" class="btn btn-success">Download Results CSV</a>
+            </div>
+
+            <div class="section-box">
+                <h2 class="mb-3">Prediction Summary</h2>
+                <div class="summary-box">
+                    <p class="mb-2"><strong>Job ID:</strong> {{ job_id }}</p>
+                    <p class="mb-0">
+                        The ADMET workflow completed successfully. The table below presents the predicted
+                        pharmacokinetic and toxicity-related properties for the submitted compounds.
+                    </p>
+                </div>
+
+                <div class="meta-grid">
+                    <div class="meta-item">
+                        <strong>Total Rows</strong>
+                        <span>{{ total_rows }}</span>
+                    </div>
+                    <div class="meta-item">
+                        <strong>Total Columns</strong>
+                        <span>{{ total_columns }}</span>
+                    </div>
+                    <div class="meta-item">
+                        <strong>Output Format</strong>
+                        <span>CSV download and interactive table view</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="highlight-note">
+                <h3 class="mb-2">Interpretation Note</h3>
+                <p class="mb-0 small-text">
+                    ADMET predictions are computational estimates intended to support screening and prioritization.
+                    These results should be interpreted carefully and validated experimentally whenever needed.
+                </p>
+            </div>
+
+            <div class="section-box">
+                <h2>Prediction Table</h2>
+                <p class="small-text">
+                    Review the complete ADMET prediction output below. You may also download the results as a CSV file for further analysis.
+                </p>
+                <div class="table-responsive table-wrapper">
+                    {{ results_table|safe }}
+                </div>
+            </div>
+
+            <div class="footer-note">
+                Generated by the DrugForge AI ADMET workflow.
+            </div>
+        </div>
+    </div>
+</body>
+</html>

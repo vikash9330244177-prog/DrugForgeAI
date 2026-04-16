@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DrugForge AI - Hit-to-Lead Results</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #f4f8fb;
+            --card: #ffffff;
+            --card-soft: #f8fbfd;
+            --primary: #2f6f8f;
+            --primary-dark: #255a74;
+            --secondary: #6c8ea3;
+            --secondary-dark: #59798d;
+            --accent: #4f8a6f;
+            --accent-dark: #3d6f58;
+            --text: #243746;
+            --muted: #627786;
+            --border: #d9e5ec;
+            --summary-bg: #eef7fb;
+            --summary-border: #78aeca;
+            --badge-bg: #e7f1f6;
+            --badge-text: #2b607c;
+            --code-bg: #183041;
+            --code-text: #edf5fb;
+            --shadow: 0 10px 28px rgba(36, 55, 70, 0.08);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(180deg, #f7fbfd 0%, #eef4f8 100%);
+            font-family: 'Roboto', sans-serif;
+            color: var(--text);
+            margin: 0;
+            padding: 24px;
+        }
+
+        .page-wrap {
+            max-width: 1300px;
+            margin: 0 auto;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+
+        .hero {
+            padding: 26px 30px;
+            background: linear-gradient(135deg, #e9f4f8 0%, #f9fcfd 100%);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .hero h1 {
+            font-size: 2rem;
+            color: var(--primary);
+            margin-bottom: 8px;
+            font-weight: 700;
+        }
+
+        .subtle {
+            color: var(--muted);
+            line-height: 1.6;
+        }
+
+        .content-wrap {
+            padding: 26px 30px 30px;
+        }
+
+        .card-box {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 18px;
+            height: 100%;
+            box-shadow: 0 4px 14px rgba(36, 55, 70, 0.04);
+        }
+
+        .metric-card {
+            border-left: 5px solid var(--primary);
+            background: linear-gradient(180deg, #ffffff 0%, #fbfdfe 100%);
+        }
+
+        .metric-title {
+            font-size: 0.92rem;
+            color: var(--muted);
+            margin-bottom: 6px;
+        }
+
+        .metric-value {
+            font-size: 1.45rem;
+            font-weight: 700;
+            color: var(--text);
+            word-break: break-word;
+        }
+
+        .section-title {
+            color: var(--primary);
+            font-weight: 700;
+            margin-bottom: 14px;
+        }
+
+        .download-grid a {
+            margin: 6px 8px 6px 0;
+        }
+
+        .plot-card img {
+            width: 100%;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: #fff;
+            padding: 8px;
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: #fff;
+            padding: 6px;
+        }
+
+        .summary-box {
+            background: var(--summary-bg);
+            border: 1px solid #dbeaf2;
+            border-radius: 12px;
+            padding: 14px 16px;
+        }
+
+        pre {
+            white-space: pre-wrap;
+            word-break: break-word;
+            background: var(--code-bg);
+            color: var(--code-text);
+            padding: 16px;
+            border-radius: 12px;
+            margin: 0;
+            line-height: 1.6;
+            font-size: 0.95rem;
+        }
+
+        .badge-soft {
+            background: var(--badge-bg);
+            color: var(--badge-text);
+            border-radius: 999px;
+            padding: 7px 12px;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .btn {
+            border-radius: 10px;
+            font-weight: 500;
+            padding: 0.72rem 1.15rem;
+            transition: all 0.2s ease;
+        }
+
+        .btn-main {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: #fff;
+        }
+
+        .btn-main:hover {
+            background: var(--primary-dark);
+            border-color: var(--primary-dark);
+            color: #fff;
+        }
+
+        .btn-outline-primary {
+            color: var(--primary);
+            border-color: var(--primary);
+        }
+
+        .btn-outline-primary:hover {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: #fff;
+        }
+
+        .btn-outline-info {
+            color: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .btn-outline-info:hover {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+        }
+
+        .btn-outline-dark {
+            color: #3e5566;
+            border-color: #7d95a5;
+        }
+
+        .btn-outline-dark:hover {
+            background: #4d6576;
+            border-color: #4d6576;
+            color: #fff;
+        }
+
+        .btn-secondary {
+            background: var(--secondary);
+            border-color: var(--secondary);
+            color: #fff;
+        }
+
+        .btn-secondary:hover {
+            background: var(--secondary-dark);
+            border-color: var(--secondary-dark);
+            color: #fff;
+        }
+
+        .btn-outline-secondary {
+            color: var(--secondary);
+            border-color: var(--secondary);
+        }
+
+        .btn-outline-secondary:hover {
+            background: var(--secondary);
+            border-color: var(--secondary);
+            color: #fff;
+        }
+
+        .footer-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .table th {
+            background-color: #edf5f8;
+            color: var(--text);
+            border-color: var(--border) !important;
+            white-space: nowrap;
+        }
+
+        .table td {
+            color: #334b5c;
+            border-color: #e3edf2 !important;
+            vertical-align: middle;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 14px;
+            }
+
+            .hero {
+                padding: 22px 18px;
+            }
+
+            .content-wrap {
+                padding: 20px 18px 22px;
+            }
+
+            .hero h1 {
+                font-size: 1.6rem;
+            }
+
+            .footer-actions {
+                flex-direction: column;
+            }
+
+            .footer-actions .btn,
+            .download-grid .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="page-wrap">
+    <div class="hero">
+        <div class="d-flex flex-wrap justify-content-between align-items-center">
+            <div>
+                <h1>Hit-to-Lead Optimization Results</h1>
+                <div class="subtle">
+                    Review ranked follow-up candidates, summary statistics, plots, and downloadable outputs generated by DrugForge AI.
+                </div>
+            </div>
+            <div class="mt-2 mt-md-0">
+                <span class="badge-soft">Job ID: {{ job_id }}</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="content-wrap">
+        <div class="row mb-4">
+            <div class="col-md-3 mb-3">
+                <div class="card-box metric-card">
+                    <div class="metric-title">Total Rows</div>
+                    <div class="metric-value">{{ total_rows }}</div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card-box metric-card">
+                    <div class="metric-title">Total Columns</div>
+                    <div class="metric-value">{{ total_columns }}</div>
+                </div>
+            </div>
+            <div class="col-md-6 mb-3">
+                <div class="card-box metric-card">
+                    <div class="metric-title">Reference SMILES</div>
+                    <div class="metric-value" style="font-size:1rem; line-height:1.5;">
+                        {% if reference_smiles %}
+                            {{ reference_smiles }}
+                        {% else %}
+                            Not provided
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-box mb-4">
+            <h3 class="section-title">Downloads</h3>
+            <div class="download-grid">
+                {% if results_download_url %}
+                    <a href="{{ results_download_url }}" class="btn btn-main">Download Ranked Results CSV</a>
+                {% endif %}
+                {% if summary_download_url %}
+                    <a href="{{ summary_download_url }}" class="btn btn-outline-primary">Download Summary JSON</a>
+                {% endif %}
+                {% if summary_text_download_url %}
+                    <a href="{{ summary_text_download_url }}" class="btn btn-outline-primary">Download Summary Text</a>
+                {% endif %}
+                {% if ranking_plot_download_url %}
+                    <a href="{{ ranking_plot_download_url }}" class="btn btn-outline-info">Download Ranking Plot</a>
+                {% endif %}
+                {% if property_plot_download_url %}
+                    <a href="{{ property_plot_download_url }}" class="btn btn-outline-info">Download Property Plot</a>
+                {% endif %}
+                {% if job_zip_download_url %}
+                    <a href="{{ job_zip_download_url }}" class="btn btn-outline-dark">Download Full Job ZIP</a>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if summary_data %}
+        <div class="card-box mb-4">
+            <h3 class="section-title">Summary</h3>
+            <div class="summary-box">
+                <div class="row">
+                    {% for key, value in summary_data.items() %}
+                        <div class="col-md-4 mb-3">
+                            <div><strong>{{ key.replace('_', ' ')|title }}</strong></div>
+                            <div class="subtle">
+                                {% if value is mapping or value is sequence and value is not string %}
+                                    {{ value|tojson }}
+                                {% else %}
+                                    {{ value }}
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if ranking_plot_url or property_plot_url %}
+        <div class="row mb-4">
+            {% if ranking_plot_url %}
+            <div class="col-md-6 mb-3">
+                <div class="card-box plot-card">
+                    <h3 class="section-title">Ranking Plot</h3>
+                    <img src="{{ ranking_plot_url }}" alt="Ranking Plot">
+                </div>
+            </div>
+            {% endif %}
+            {% if property_plot_url %}
+            <div class="col-md-6 mb-3">
+                <div class="card-box plot-card">
+                    <h3 class="section-title">Property Distribution</h3>
+                    <img src="{{ property_plot_url }}" alt="Property Distribution Plot">
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if results_table %}
+        <div class="card-box mb-4">
+            <h3 class="section-title">Ranked Candidates Table</h3>
+            <div class="table-wrap">
+                {{ results_table|safe }}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if summary_text %}
+        <div class="card-box mb-4">
+            <h3 class="section-title">Text Summary</h3>
+            <pre>{{ summary_text }}</pre>
+        </div>
+        {% endif %}
+
+        <div class="footer-actions">
+            <a href="{{ url_for('index') }}" class="btn btn-secondary">Back to Home</a>
+            <a href="{{ url_for('index') }}#pills-hit-to-lead" class="btn btn-outline-secondary">Back to Hit-to-Lead Tab</a>
+        </div>
+    </div>
+</div>
+</body>
+</html>

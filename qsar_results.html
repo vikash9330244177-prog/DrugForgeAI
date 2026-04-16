@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DrugForge AI - QSAR Training Results</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #f4f8fb;
+            --card: #ffffff;
+            --card-soft: #f8fbfd;
+            --primary: #2f6f8f;
+            --primary-dark: #255a74;
+            --secondary: #6c8ea3;
+            --secondary-dark: #59798d;
+            --accent: #4f8a6f;
+            --accent-dark: #3d6f58;
+            --text: #243746;
+            --muted: #627786;
+            --border: #d9e5ec;
+            --summary-bg: #eef7fb;
+            --summary-border: #78aeca;
+            --table-head: #edf5f8;
+            --shadow: 0 10px 28px rgba(36, 55, 70, 0.08);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: linear-gradient(180deg, #f7fbfd 0%, #eef4f8 100%);
+            color: var(--text);
+            margin: 0;
+            padding: 24px;
+        }
+
+        .page-container {
+            max-width: 1380px;
+            margin: 0 auto;
+            background-color: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+
+        .hero {
+            background: linear-gradient(135deg, #e9f4f8 0%, #f9fcfd 100%);
+            padding: 30px 34px 24px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .hero h1 {
+            margin: 0 0 8px 0;
+            color: var(--primary);
+            font-weight: 700;
+            font-size: 2rem;
+        }
+
+        .hero p {
+            margin: 0;
+            color: var(--muted);
+            line-height: 1.6;
+        }
+
+        .content-wrap {
+            padding: 26px 30px 30px;
+        }
+
+        .top-actions .btn {
+            margin-right: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .btn {
+            border-radius: 10px;
+            font-weight: 500;
+            padding: 0.72rem 1.15rem;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            border-color: var(--primary);
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-dark);
+            border-color: var(--primary-dark);
+            color: #fff;
+        }
+
+        .btn-secondary {
+            background-color: var(--secondary);
+            border-color: var(--secondary);
+            color: #fff;
+        }
+
+        .btn-secondary:hover {
+            background-color: var(--secondary-dark);
+            border-color: var(--secondary-dark);
+            color: #fff;
+        }
+
+        .btn-success {
+            background-color: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+        }
+
+        .btn-success:hover {
+            background-color: var(--accent-dark);
+            border-color: var(--accent-dark);
+            color: #fff;
+        }
+
+        .btn-info {
+            background-color: var(--secondary);
+            border-color: var(--secondary);
+            color: #fff;
+        }
+
+        .btn-info:hover {
+            background-color: var(--secondary-dark);
+            border-color: var(--secondary-dark);
+            color: #fff;
+        }
+
+        .section-card {
+            background-color: var(--card-soft);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+
+        h1, h2, h3, h4 {
+            color: var(--primary);
+            font-weight: 700;
+        }
+
+        .summary-card {
+            background-color: var(--summary-bg);
+            border-left: 5px solid var(--summary-border);
+            border-radius: 12px;
+            padding: 1rem;
+            height: 100%;
+        }
+
+        .summary-label {
+            font-size: 0.9rem;
+            color: var(--muted);
+            margin-bottom: 0.25rem;
+        }
+
+        .summary-value {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text);
+            word-break: break-word;
+            line-height: 1.5;
+        }
+
+        .table-responsive {
+            max-height: 650px;
+            overflow: auto;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: #fff;
+            padding: 6px;
+        }
+
+        table {
+            background-color: #ffffff;
+            margin-bottom: 0;
+        }
+
+        th {
+            position: sticky;
+            top: 0;
+            background: var(--table-head);
+            z-index: 2;
+            color: var(--text);
+            border-color: var(--border) !important;
+            white-space: nowrap;
+        }
+
+        td {
+            color: #334b5c;
+            border-color: #e3edf2 !important;
+            vertical-align: middle;
+        }
+
+        .metric-table td,
+        .metric-table th {
+            vertical-align: middle;
+        }
+
+        .plot-img {
+            width: 100%;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: #fff;
+            padding: 0.6rem;
+            box-shadow: 0 4px 14px rgba(36, 55, 70, 0.05);
+        }
+
+        .badge-soft {
+            background-color: #e7f1f6;
+            color: #2b607c;
+            padding: 0.45rem 0.75rem;
+            border-radius: 999px;
+            font-size: 0.85rem;
+            margin-right: 0.4rem;
+            display: inline-block;
+            margin-bottom: 0.4rem;
+            font-weight: 600;
+        }
+
+        .note-text {
+            color: #4d6270;
+            font-size: 0.96rem;
+            line-height: 1.7;
+        }
+
+        .empty-box {
+            padding: 1rem;
+            border: 1px dashed #b9ccd8;
+            border-radius: 12px;
+            background: #fcfeff;
+            color: var(--muted);
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 14px;
+            }
+
+            .hero {
+                padding: 24px 18px 20px;
+            }
+
+            .content-wrap {
+                padding: 20px 18px 22px;
+            }
+
+            .hero h1 {
+                font-size: 1.6rem;
+            }
+
+            .top-actions .btn {
+                width: 100%;
+                margin-right: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page-container">
+        <div class="hero">
+            <div class="d-flex flex-wrap justify-content-between align-items-center">
+                <div>
+                    <h1>QSAR Training Results</h1>
+                    <p>Review model training outputs, evaluation metrics, generated plots, and downloadable files from the DrugForge AI QSAR workflow.</p>
+                </div>
+                <div class="top-actions">
+                    <a href="{{ url_for('qsar_page') }}" class="btn btn-primary">Back to QSAR Page</a>
+                    <a href="{{ url_for('index') }}" class="btn btn-secondary">Back to Home</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-wrap">
+            <div class="section-card">
+                <h3 class="mb-3">Run Summary</h3>
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <div class="summary-card">
+                            <div class="summary-label">Training Job ID</div>
+                            <div class="summary-value">{{ job_id }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="summary-card">
+                            <div class="summary-label">Target Column</div>
+                            <div class="summary-value">{{ target_column }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="summary-card">
+                            <div class="summary-label">Task Type</div>
+                            <div class="summary-value text-capitalize">{{ task_type }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="summary-card">
+                            <div class="summary-label">Model Type</div>
+                            <div class="summary-value">{{ model_type }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="summary-card">
+                            <div class="summary-label">Split Type</div>
+                            <div class="summary-value text-capitalize">{{ split_type }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="summary-card">
+                            <div class="summary-label">Result Rows</div>
+                            <div class="summary-value">{{ total_rows }}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="summary-card">
+                            <div class="summary-label">Result Columns</div>
+                            <div class="summary-value">{{ total_columns }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-card">
+                <h3 class="mb-3">Downloads</h3>
+                {% if metrics_download_url or train_predictions_download_url or test_predictions_download_url or results_download_url or model_download_url %}
+                    <div>
+                        {% if metrics_download_url %}
+                            <a href="{{ metrics_download_url }}" class="btn btn-info mb-2">Download Metrics JSON</a>
+                        {% endif %}
+                        {% if train_predictions_download_url %}
+                            <a href="{{ train_predictions_download_url }}" class="btn btn-info mb-2">Download Train Predictions</a>
+                        {% endif %}
+                        {% if test_predictions_download_url %}
+                            <a href="{{ test_predictions_download_url }}" class="btn btn-info mb-2">Download Test Predictions</a>
+                        {% endif %}
+                        {% if results_download_url %}
+                            <a href="{{ results_download_url }}" class="btn btn-success mb-2">Download Combined Results</a>
+                        {% endif %}
+                        {% if model_download_url %}
+                            <a href="{{ model_download_url }}" class="btn btn-primary mb-2">Download Trained Model</a>
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <div class="empty-box">No downloadable files are currently available for this QSAR training run.</div>
+                {% endif %}
+            </div>
+
+            <div class="section-card">
+                <h3 class="mb-3">Evaluation Metrics</h3>
+                {% if metrics and metrics|length > 0 %}
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-striped metric-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 35%;">Metric</th>
+                                    <th>Value</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for key, value in metrics.items() %}
+                                <tr>
+                                    <td>{{ key.replace('_', ' ') | title }}</td>
+                                    <td>
+                                        {% if value is not none %}
+                                            {{ "%.6f"|format(value) if value is number else value }}
+                                        {% else %}
+                                            Not Available
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="empty-box">Metrics were not found for this training run.</div>
+                {% endif %}
+            </div>
+
+            <div class="section-card">
+                <h3 class="mb-3">Generated Plots</h3>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <h5>Primary Performance Plot</h5>
+                        {% if performance_plot_url %}
+                            <img src="{{ performance_plot_url }}" alt="Performance Plot" class="plot-img">
+                        {% else %}
+                            <div class="empty-box">Primary performance plot is not available.</div>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <h5>Secondary Evaluation Plot</h5>
+                        {% if secondary_plot_url %}
+                            <img src="{{ secondary_plot_url }}" alt="Secondary Plot" class="plot-img">
+                        {% else %}
+                            <div class="empty-box">Secondary evaluation plot is not available.</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-card">
+                <h3 class="mb-3">Combined QSAR Results</h3>
+                {% if results_table %}
+                    <div class="table-responsive">
+                        {{ results_table|safe }}
+                    </div>
+                {% else %}
+                    <div class="empty-box">Combined results table is not available.</div>
+                {% endif %}
+            </div>
+
+            <div class="section-card">
+                <h3 class="mb-3">Training Set Predictions</h3>
+                {% if train_table %}
+                    <div class="table-responsive">
+                        {{ train_table|safe }}
+                    </div>
+                {% else %}
+                    <div class="empty-box">Training set predictions are not available.</div>
+                {% endif %}
+            </div>
+
+            <div class="section-card">
+                <h3 class="mb-3">Test Set Predictions</h3>
+                {% if test_table %}
+                    <div class="table-responsive">
+                        {{ test_table|safe }}
+                    </div>
+                {% else %}
+                    <div class="empty-box">Test set predictions are not available.</div>
+                {% endif %}
+            </div>
+
+            <div class="section-card">
+                <h3 class="mb-3">Notes</h3>
+                <p class="note-text mb-2">
+                    This page summarizes the outputs generated by the QSAR training workflow. Depending on the selected task type and model type, the displayed metrics and plots may differ.
+                </p>
+                <p class="note-text mb-0">
+                    Save the <strong>Training Job ID</strong> if you want to reuse this model later for external QSAR prediction.
+                </p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

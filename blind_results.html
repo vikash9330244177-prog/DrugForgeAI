@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DrugForge AI - Blind Docking Results</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #f4f8fb;
+            --card: #ffffff;
+            --card-soft: #f8fbfd;
+            --primary: #2f6f8f;
+            --primary-dark: #255a74;
+            --secondary: #6c8ea3;
+            --secondary-dark: #59798d;
+            --text: #243746;
+            --muted: #627786;
+            --border: #d9e5ec;
+            --summary-bg: #eef7fb;
+            --summary-border: #78aeca;
+            --note-bg: #fdf8ee;
+            --note-border: #d7a85d;
+            --table-head: #edf5f8;
+            --shadow: 0 10px 28px rgba(36, 55, 70, 0.08);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: linear-gradient(180deg, #f7fbfd 0%, #eef4f8 100%);
+            color: var(--text);
+            margin: 0;
+            padding: 24px;
+        }
+
+        .page-container {
+            max-width: 1320px;
+            margin: 0 auto;
+            background-color: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+
+        .hero {
+            background: linear-gradient(135deg, #e9f4f8 0%, #f9fcfd 100%);
+            padding: 32px 36px 24px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .hero h1 {
+            margin: 0;
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary);
+            text-align: center;
+        }
+
+        .hero-subtitle {
+            margin-top: 10px;
+            text-align: center;
+            color: var(--muted);
+            font-size: 0.98rem;
+        }
+
+        .content-wrap {
+            padding: 28px 32px 32px;
+        }
+
+        .top-actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+        }
+
+        .btn {
+            font-weight: 500;
+            padding: 0.72rem 1.2rem;
+            border-radius: 10px;
+            border: none;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-dark);
+            color: #fff;
+        }
+
+        .btn-secondary {
+            background-color: var(--secondary);
+            color: #fff;
+        }
+
+        .btn-secondary:hover {
+            background-color: var(--secondary-dark);
+            color: #fff;
+        }
+
+        .section-box {
+            background-color: var(--card-soft);
+            border: 1px solid var(--border);
+            padding: 1.25rem;
+            border-radius: 14px;
+            margin-bottom: 1.4rem;
+        }
+
+        .section-box h2,
+        .note-box h3 {
+            color: var(--primary);
+            font-weight: 700;
+        }
+
+        .summary-box {
+            background-color: var(--summary-bg);
+            border-left: 5px solid var(--summary-border);
+            padding: 1rem 1.1rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+        }
+
+        .note-box {
+            background-color: var(--note-bg);
+            border-left: 5px solid var(--note-border);
+            padding: 1rem 1.1rem;
+            border-radius: 12px;
+            margin-bottom: 1.4rem;
+        }
+
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 14px;
+            margin-top: 1rem;
+        }
+
+        .meta-item {
+            background: #ffffff;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem;
+        }
+
+        .meta-item strong {
+            display: block;
+            color: var(--text);
+            margin-bottom: 0.35rem;
+            font-size: 0.95rem;
+        }
+
+        .meta-item span {
+            color: var(--muted);
+            font-size: 0.96rem;
+        }
+
+        .small-text {
+            font-size: 0.95rem;
+            color: var(--muted);
+            line-height: 1.6;
+        }
+
+        .chart-img {
+            width: 100%;
+            max-width: 100%;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            box-shadow: 0 4px 14px rgba(36, 55, 70, 0.08);
+            background: #fff;
+            padding: 10px;
+            margin-top: 8px;
+        }
+
+        .table-responsive {
+            margin-top: 1rem;
+            overflow-x: auto;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: #fff;
+            padding: 6px;
+        }
+
+        table {
+            background: #fff;
+            margin-bottom: 0;
+        }
+
+        .table th,
+        table th {
+            background-color: var(--table-head);
+            color: var(--text);
+            font-weight: 600;
+            border-color: var(--border) !important;
+            white-space: nowrap;
+        }
+
+        .table td,
+        table td {
+            color: #334b5c;
+            border-color: #e3edf2 !important;
+            vertical-align: middle;
+        }
+
+        .footer-note {
+            margin-top: 1.5rem;
+            color: var(--muted);
+            font-size: 0.92rem;
+            text-align: center;
+            padding-top: 6px;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 14px;
+            }
+
+            .hero {
+                padding: 24px 20px 18px;
+            }
+
+            .content-wrap {
+                padding: 20px 18px 24px;
+            }
+
+            .hero h1 {
+                font-size: 1.6rem;
+            }
+
+            .top-actions {
+                flex-direction: column;
+            }
+
+            .top-actions .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page-container">
+        <div class="hero">
+            <h1>Blind Docking Results</h1>
+            <div class="hero-subtitle">
+                Review docking summaries, predicted binding regions, and recorded pose data generated by DrugForge AI.
+            </div>
+        </div>
+
+        <div class="content-wrap">
+            <div class="top-actions">
+                <a href="{{ url_for('index') }}" class="btn btn-primary">Back to DrugForge AI</a>
+                <a href="{{ url_for('blind_docking_page') }}" class="btn btn-secondary">Run Another Blind Docking Job</a>
+            </div>
+
+            <div class="section-box">
+                <h2 class="mb-3">Job Summary</h2>
+                <div class="summary-box">
+                    <p class="mb-2"><strong>Job ID:</strong> {{ job_id }}</p>
+                    <p class="mb-0">
+                        The blind docking workflow completed successfully. The sections below include the
+                        whole-protein search box details, ligand ranking summaries, predicted binding site
+                        rankings, and all recorded docking poses.
+                    </p>
+                </div>
+
+                <div class="meta-grid">
+                    <div class="meta-item">
+                        <strong>Search Box Center X</strong>
+                        <span>{{ box_info.center_x }}</span>
+                    </div>
+                    <div class="meta-item">
+                        <strong>Search Box Center Y</strong>
+                        <span>{{ box_info.center_y }}</span>
+                    </div>
+                    <div class="meta-item">
+                        <strong>Search Box Center Z</strong>
+                        <span>{{ box_info.center_z }}</span>
+                    </div>
+                    <div class="meta-item">
+                        <strong>Search Box Size X</strong>
+                        <span>{{ box_info.size_x }}</span>
+                    </div>
+                    <div class="meta-item">
+                        <strong>Search Box Size Y</strong>
+                        <span>{{ box_info.size_y }}</span>
+                    </div>
+                    <div class="meta-item">
+                        <strong>Search Box Size Z</strong>
+                        <span>{{ box_info.size_z }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="note-box">
+                <h3 class="mb-2">Important Note on RMSD Values</h3>
+                <p class="mb-0 small-text">
+                    In AutoDock Vina, the top-ranked pose often has RMSD lower bound and RMSD upper bound values of 0.000
+                    because alternative poses are measured relative to the best-scoring pose. Non-zero RMSD values are
+                    generally expected for later-ranked poses rather than for the first-ranked pose.
+                </p>
+            </div>
+
+            <div class="section-box">
+                <h2>Best Docking Score per Ligand</h2>
+                <p class="small-text">
+                    This chart summarizes the best binding affinity obtained for each ligand across all scanned binding regions.
+                </p>
+                {% if ligand_chart %}
+                    <img src="{{ url_for('static', filename=ligand_chart) }}" alt="Best Docking Score per Ligand" class="chart-img">
+                {% endif %}
+                <div class="table-responsive">
+                    {{ best_ligands_table|safe }}
+                </div>
+            </div>
+
+            <div class="section-box">
+                <h2>Top Predicted Binding Sites</h2>
+                <p class="small-text">
+                    This chart ranks the scanned docking regions according to the best binding affinity observed at each site.
+                </p>
+                {% if site_chart %}
+                    <img src="{{ url_for('static', filename=site_chart) }}" alt="Top Predicted Binding Sites" class="chart-img">
+                {% endif %}
+                <div class="table-responsive">
+                    {{ top_sites_table|safe }}
+                </div>
+            </div>
+
+            <div class="section-box">
+                <h2>All Docking Poses</h2>
+                <p class="small-text">
+                    The table below contains all recorded poses, including pose rank, binding affinity, RMSD values, and site coordinates.
+                </p>
+                <div class="table-responsive">
+                    {{ all_results_table|safe }}
+                </div>
+            </div>
+
+            <div class="footer-note">
+                Generated by the DrugForge AI blind docking workflow.
+            </div>
+        </div>
+    </div>
+</body>
+</html>

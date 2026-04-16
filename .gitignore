@@ -1,0 +1,149 @@
+# ------------------------------
+# Python cache / compiled files
+# ------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+
+# ------------------------------
+# Virtual environments
+# ------------------------------
+.venv/
+venv/
+env/
+ENV/
+conda_env/
+.python-version
+
+# ------------------------------
+# Secrets / local environment
+# ------------------------------
+.env
+.env.*
+!.env.example
+
+# ------------------------------
+# Logs
+# ------------------------------
+*.log
+logs/
+
+# ------------------------------
+# Jupyter / notebooks
+# ------------------------------
+.ipynb_checkpoints/
+
+# ------------------------------
+# OS / editor files
+# ------------------------------
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# ------------------------------
+# Test / coverage / build
+# ------------------------------
+.pytest_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# ------------------------------
+# Runtime folders
+# Keep folders if needed with .gitkeep
+# ------------------------------
+runtime/uploads/*
+runtime/generated_files/*
+runtime/docking_results/*
+runtime/blind_jobs/*
+runtime/admet_jobs/*
+runtime/qsar_jobs/*
+runtime/hit_to_lead_jobs/*
+runtime/plip_jobs/*
+
+!runtime/uploads/.gitkeep
+!runtime/generated_files/.gitkeep
+!runtime/docking_results/.gitkeep
+!runtime/blind_jobs/.gitkeep
+!runtime/admet_jobs/.gitkeep
+!runtime/qsar_jobs/.gitkeep
+!runtime/hit_to_lead_jobs/.gitkeep
+!runtime/plip_jobs/.gitkeep
+
+# ------------------------------
+# Legacy root-level runtime folders
+# ------------------------------
+uploaded_files/
+generated_files/
+uploads/
+docking_results/
+blind_jobs/
+admet_jobs/
+qsar_jobs/
+hit_to_lead_jobs/
+plip_jobs/
+
+# ------------------------------
+# Generated outputs / reports / plots
+# ------------------------------
+*.csv
+*.json
+*.txt
+*.png
+*.jpg
+*.jpeg
+*.svg
+*.pdf
+*.zip
+*.sdf
+*.smi
+*.pdbqt
+*.mol2
+
+# ------------------------------
+# Keep sample/demo files tracked
+# ------------------------------
+!sample_input/
+!sample_input/*.csv
+!sample_input/*.md
+
+# ------------------------------
+# Keep important docs tracked
+# ------------------------------
+!README.md
+!LICENSE
+!requirements.txt
+!.gitignore
+
+# ------------------------------
+# Models / saved artifacts
+# Keep placeholder files only
+# ------------------------------
+models/*
+!models/.gitkeep
+!models/README.md
+
+# ------------------------------
+# Third-party local tool installs
+# Keep placeholder/readme only
+# ------------------------------
+third_party/*
+!third_party/README.md
+
+# ------------------------------
+# Static generated files
+# Ignore generated plots/results in static
+# ------------------------------
+static/**/*.png
+static/**/*.jpg
+static/**/*.jpeg
+static/**/*.svg
+static/**/*.csv
+static/**/*.json
+static/**/*.zip
+!static/.gitkeep
