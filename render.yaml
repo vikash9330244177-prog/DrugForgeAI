@@ -3,3 +3,4 @@ services:
     name: drugforgeai
     env: docker
     autoDeploy: true
+    healthCheckPath: /healthz
