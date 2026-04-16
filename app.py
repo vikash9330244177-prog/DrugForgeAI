@@ -74,7 +74,10 @@ from openmm.unit import kelvin, picosecond, picoseconds, nanometer
 from pdbfixer import PDBFixer
 
 app = Flask(__name__)
-
+@app.get("/healthz")
+def healthz():
+    return "OK", 200
+    
 BASE_DIR = app.root_path
 RUNTIME_DIR = os.path.join(BASE_DIR, 'runtime')
 STATIC_DIR = os.path.join(BASE_DIR, 'static')
