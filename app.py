@@ -66,7 +66,28 @@ from sklearn.decomposition import PCA
 from torch.utils.data import DataLoader
 
 from gnn_model import GNN
-from gnn_utils import MoleculeDataset, collate, standardize_smiles_and_mol
+from gnn_utils import (
+    MoleculeDataset,
+    collate,
+    standardize_smiles_and_mol,
+    ATOM_FEATURE_DIM,
+    BOND_FEATURE_DIM,
+    scaffold_split_indices,
+    build_reference_fingerprints,
+    max_tanimoto_similarity,
+    applicability_domain_label
+)
+
+from gnn3d_model import Advanced3DGNN
+from gnn3d_utils import (
+    Molecule3DDataset,
+    collate_3d,
+    NODE_FEATURE_DIM_3D,
+    EDGE_FEATURE_DIM_3D,
+    DEFAULT_RADIUS_CUTOFF,
+    build_3d_result_rows,
+    summarize_conformer_status
+)
 
 from openmm.app import PDBFile, Modeller, ForceField, Simulation, PME, HBonds
 from openmm import LangevinMiddleIntegrator
@@ -96,9 +117,11 @@ app.config['ADMET_JOBS_DIR'] = os.path.join(RUNTIME_DIR, 'admet_jobs')
 app.config['QSAR_JOBS_DIR'] = os.path.join(RUNTIME_DIR, 'qsar_jobs')
 app.config['HIT_TO_LEAD_JOBS_DIR'] = os.path.join(RUNTIME_DIR, 'hit_to_lead_jobs')
 app.config['PLIP_JOBS_DIR'] = os.path.join(RUNTIME_DIR, 'plip_jobs')
+app.config['GNN3D_JOBS_DIR'] = os.path.join(RUNTIME_DIR, 'gnn3d_jobs')
 
 # Model / script paths
 app.config['QSAR_MODELS_DIR'] = os.path.join(MODELS_DIR, 'qsar_saved_models')
+app.config['GNN_MODELS_DIR'] = os.path.join(MODELS_DIR, 'gnn_saved_models')
 app.config['ADMET_BRIDGE_SCRIPT'] = os.path.join(BASE_DIR, 'admet_bridge.py')
 app.config['QSAR_BRIDGE_SCRIPT'] = os.path.join(BASE_DIR, 'qsar_bridge.py')
 app.config['HIT_TO_LEAD_BRIDGE_SCRIPT'] = os.path.join(BASE_DIR, 'hit_to_lead_bridge.py')
@@ -132,8 +155,10 @@ for directory in [
     app.config['ADMET_JOBS_DIR'],
     app.config['QSAR_JOBS_DIR'],
     app.config['QSAR_MODELS_DIR'],
+    app.config['GNN_MODELS_DIR'],
     app.config['HIT_TO_LEAD_JOBS_DIR'],
     app.config['PLIP_JOBS_DIR'],
+    app.config['GNN3D_JOBS_DIR'],
     app.config['AUTOGROW4_DIR'],
     app.config['PLIP_TOOL_DIR'],
     os.path.join(STATIC_DIR, 'css'),
@@ -154,6 +179,17 @@ EARLY_STOPPING_PATIENCE = 15
 LEARNING_RATE = 3e-4
 WEIGHT_DECAY = 1e-4
 RANDOM_SEED = 42
+MC_DROPOUT_PASSES = 20
+APPLICABILITY_DOMAIN_THRESHOLD = 0.35
+
+GNN2D_MODEL_PATH = os.path.join(app.config['GNN_MODELS_DIR'], 'best_2d_gnn_model.pth')
+GNN2D_REFERENCE_SMILES_PATH = os.path.join(app.config['GNN_MODELS_DIR'], 'gnn2d_reference_smiles.csv')
+
+GNN3D_MODEL_PATH = os.path.join(app.config['GNN_MODELS_DIR'], 'best_3d_gnn_model.pth')
+GNN3D_REFERENCE_SMILES_PATH = os.path.join(app.config['GNN_MODELS_DIR'], 'gnn3d_reference_smiles.csv')
+GNN3D_TRAIN_BATCH_SIZE = 24
+GNN3D_NUM_LAYERS = 4
+
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 logging.basicConfig(level=logging.WARNING)
@@ -310,16 +346,54 @@ def add_priority_scores(df):
     df = df.drop(columns=[c for c in PRIORITY_COLUMNS if c in df.columns], errors='ignore')
     df = add_molecule_profiles(df, 'Compound')
 
-    prob = pd.to_numeric(df['Probability'], errors='coerce').fillna(0.0)
+    prob = pd.to_numeric(df['Probability'], errors='coerce').fillna(0.0).clip(0.0, 1.0)
+
+    # Confidence is high when probability is far from 0.5.
     df['Confidence'] = (2.0 * np.abs(prob - 0.5)).round(4)
+
     qed_term = pd.to_numeric(df['QED'], errors='coerce').fillna(0.0).clip(0.0, 1.0)
-    lipinski_bonus = (1.0 - (pd.to_numeric(df['LipinskiViolations'], errors='coerce').fillna(4).clip(0, 4) / 4.0)).clip(0.0, 1.0)
+    lipinski_bonus = (
+        1.0 -
+        (
+            pd.to_numeric(df['LipinskiViolations'], errors='coerce')
+            .fillna(4)
+            .clip(0, 4) / 4.0
+        )
+    ).clip(0.0, 1.0)
+
     df['DrugLikeScore'] = (0.65 * qed_term + 0.35 * lipinski_bonus).round(4)
+
+    # Optional uncertainty column from MC dropout.
+    if 'Uncertainty' in df.columns:
+        uncertainty = pd.to_numeric(df['Uncertainty'], errors='coerce').fillna(0.0).clip(0.0, 1.0)
+    else:
+        uncertainty = pd.Series(np.zeros(len(df)), index=df.index)
+
+    # Optional applicability-domain similarity.
+    if 'ApplicabilitySimilarity' in df.columns:
+        app_sim = pd.to_numeric(df['ApplicabilitySimilarity'], errors='coerce').fillna(0.0).clip(0.0, 1.0)
+    else:
+        app_sim = pd.Series(np.ones(len(df)), index=df.index)
+
+    if 'ApplicabilityDomain' not in df.columns:
+        df['ApplicabilityDomain'] = app_sim.apply(
+            lambda x: applicability_domain_label(
+                x,
+                inside_threshold=APPLICABILITY_DOMAIN_THRESHOLD
+            )
+        )
+
+    # Final enhanced 2D-GNN ranking.
+    # High probability + confidence + drug-likeness + applicability-domain support
+    # and lower uncertainty improve the score.
     df['PriorityScore'] = (
-        0.65 * prob +
-        0.20 * df['Confidence'].fillna(0.0) +
-        0.15 * df['DrugLikeScore'].fillna(0.0)
+        0.55 * prob +
+        0.15 * df['Confidence'].fillna(0.0) +
+        0.15 * df['DrugLikeScore'].fillna(0.0) +
+        0.10 * app_sim +
+        0.05 * (1.0 - uncertainty)
     ).round(4)
+
     df = df.loc[:, ~df.columns.duplicated()].copy()
     return df
 
@@ -840,13 +914,40 @@ def clean_smiles_only_dataframe(df):
 
 
 def build_train_val_test_indices(smiles, labels, seed=RANDOM_SEED):
+    """
+    Prefer Bemis-Murcko scaffold split for medicinal-chemistry-valid evaluation.
+
+    Scaffold split keeps structurally related analogues in the same split, which
+    gives a more realistic estimate of how the model performs on new scaffolds.
+    If scaffold split fails or the dataset is too small, the function safely
+    falls back to the previous stratified random split.
+    """
+    try:
+        train_indices, val_indices, test_indices = scaffold_split_indices(
+            smiles,
+            train_frac=0.70,
+            val_frac=0.15,
+            test_frac=0.15,
+            seed=seed
+        )
+
+        if len(train_indices) > 0 and len(val_indices) > 0 and len(test_indices) > 0:
+            return train_indices, val_indices, test_indices
+
+    except Exception as scaffold_error:
+        print(f"Scaffold split failed, falling back to stratified split: {scaffold_error}")
+
     outer_split = StratifiedShuffleSplit(n_splits=1, test_size=0.15, random_state=seed)
     train_val_indices, test_indices = next(outer_split.split(smiles, labels))
 
     train_val_smiles = [smiles[i] for i in train_val_indices]
     train_val_labels = [labels[i] for i in train_val_indices]
 
-    inner_split = StratifiedShuffleSplit(n_splits=1, test_size=0.17647058823529413, random_state=seed)
+    inner_split = StratifiedShuffleSplit(
+        n_splits=1,
+        test_size=0.17647058823529413,
+        random_state=seed
+    )
     train_rel_idx, val_rel_idx = next(inner_split.split(train_val_smiles, train_val_labels))
 
     train_indices = [train_val_indices[i] for i in train_rel_idx]
@@ -859,11 +960,20 @@ def build_train_val_test_indices(smiles, labels, seed=RANDOM_SEED):
 # VIRTUAL SCREENING HELPERS
 # =========================
 
-def train_and_evaluate_model(train_dataloader, val_dataloader, model, optimizer, criterion, scheduler):
+def train_and_evaluate_model(
+    train_dataloader,
+    val_dataloader,
+    model,
+    optimizer,
+    criterion,
+    scheduler,
+    checkpoint_path=GNN2D_MODEL_PATH
+):
     best_val_loss = float('inf')
     stop_counter = 0
-    checkpoint_path = os.path.join(app.root_path, 'best_model.pth')
     history = {'train_loss': [], 'val_loss': []}
+
+    os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
 
     for epoch in range(TRAIN_EPOCHS):
         model.train()
@@ -873,15 +983,19 @@ def train_and_evaluate_model(train_dataloader, val_dataloader, model, optimizer,
         for batched_graph, batched_features, batched_labels in train_dataloader:
             if batched_graph is None:
                 continue
+
             batched_graph = batched_graph.to(DEVICE)
             batched_features = batched_features.to(DEVICE)
             batched_labels = batched_labels.to(DEVICE)
+
             optimizer.zero_grad()
             outputs = model(batched_graph, batched_features)
             loss = criterion(outputs, batched_labels)
             loss.backward()
+
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
+
             train_loss += loss.item()
             train_batches += 1
 
@@ -892,21 +1006,26 @@ def train_and_evaluate_model(train_dataloader, val_dataloader, model, optimizer,
         model.eval()
         val_loss = 0.0
         val_batches = 0
+
         for batched_graph, batched_features, batched_labels in val_dataloader:
             if batched_graph is None:
                 continue
+
             batched_graph = batched_graph.to(DEVICE)
             batched_features = batched_features.to(DEVICE)
             batched_labels = batched_labels.to(DEVICE)
+
             with torch.no_grad():
                 outputs = model(batched_graph, batched_features)
                 loss = criterion(outputs, batched_labels)
+
             val_loss += loss.item()
             val_batches += 1
 
         val_loss /= max(val_batches, 1)
         history['val_loss'].append(float(val_loss))
         scheduler.step(val_loss)
+
         print(f"Epoch {epoch + 1}, Validation Loss: {val_loss:.4f}")
 
         if val_loss < best_val_loss:
@@ -920,9 +1039,12 @@ def train_and_evaluate_model(train_dataloader, val_dataloader, model, optimizer,
             print('Early stopping triggered.')
             break
 
-    model.load_state_dict(torch.load(checkpoint_path, map_location=DEVICE))
-    return model, history
+    if os.path.exists(checkpoint_path):
+        model.load_state_dict(torch.load(checkpoint_path, map_location=DEVICE))
+    else:
+        raise FileNotFoundError(f"Best model checkpoint was not saved: {checkpoint_path}")
 
+    return model, history
 
 
 
@@ -987,6 +1109,555 @@ def select_plot_subset(
         subset_df = top_df.copy()
 
     return subset_df.reset_index(drop=True)
+
+
+
+# =========================
+# ADVANCED 3D GNN HELPERS / ROUTES
+# =========================
+
+def _get_3d_form_options():
+    """
+    Read and sanitize 3D GNN options from the submitted form.
+    """
+    radius_cutoff = request.form.get('radius_cutoff', type=float)
+    if radius_cutoff is None:
+        radius_cutoff = DEFAULT_RADIUS_CUTOFF
+    radius_cutoff = float(np.clip(radius_cutoff, 3.0, 8.0))
+
+    num_conformers = request.form.get('num_conformers', type=int)
+    if num_conformers is None:
+        num_conformers = 1
+    # In this implementation, num_conformers is used as the number of
+    # embedding attempts. The best practical conformer is then optimized.
+    num_conformers = int(np.clip(num_conformers, 1, 10))
+
+    forcefield = (request.form.get('optimizer') or 'MMFF').strip().upper()
+    if forcefield not in {'MMFF', 'UFF'}:
+        forcefield = 'MMFF'
+
+    return radius_cutoff, num_conformers, forcefield
+
+
+def _create_3d_gnn_model(radius_cutoff=DEFAULT_RADIUS_CUTOFF):
+    """
+    Construct the Advanced 3D GNN model with dimensions matching gnn3d_utils.py.
+    """
+    return Advanced3DGNN(
+        node_feats=NODE_FEATURE_DIM_3D,
+        edge_feats=EDGE_FEATURE_DIM_3D,
+        hidden_size=MODEL_HIDDEN_SIZE,
+        num_classes=2,
+        num_layers=GNN3D_NUM_LAYERS,
+        dropout=0.25,
+        feature_size=1197,
+        num_rbf=32,
+        cutoff=max(10.0, float(radius_cutoff) + 2.0),
+        update_coords=True
+    ).to(DEVICE)
+
+
+def train_and_evaluate_3d_model(
+    train_dataloader,
+    val_dataloader,
+    model,
+    optimizer,
+    criterion,
+    scheduler,
+    checkpoint_path=GNN3D_MODEL_PATH
+):
+    """
+    Train Advanced 3D GNN using the same early-stopping logic as 2D GNN.
+    """
+    best_val_loss = float('inf')
+    stop_counter = 0
+    history = {'train_loss': [], 'val_loss': []}
+
+    os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
+
+    for epoch in range(TRAIN_EPOCHS):
+        model.train()
+        train_loss = 0.0
+        train_batches = 0
+
+        for batched_graph, batched_features, batched_labels, _ in train_dataloader:
+            if batched_graph is None:
+                continue
+
+            batched_graph = batched_graph.to(DEVICE)
+            batched_features = batched_features.to(DEVICE)
+            batched_labels = batched_labels.to(DEVICE)
+
+            optimizer.zero_grad()
+            outputs = model(batched_graph, batched_features)
+            loss = criterion(outputs, batched_labels)
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            optimizer.step()
+
+            train_loss += loss.item()
+            train_batches += 1
+
+        train_loss /= max(train_batches, 1)
+        history['train_loss'].append(float(train_loss))
+        print(f"3D GNN Epoch {epoch + 1}, Train Loss: {train_loss:.4f}")
+
+        model.eval()
+        val_loss = 0.0
+        val_batches = 0
+
+        for batched_graph, batched_features, batched_labels, _ in val_dataloader:
+            if batched_graph is None:
+                continue
+
+            batched_graph = batched_graph.to(DEVICE)
+            batched_features = batched_features.to(DEVICE)
+            batched_labels = batched_labels.to(DEVICE)
+
+            with torch.no_grad():
+                outputs = model(batched_graph, batched_features)
+                loss = criterion(outputs, batched_labels)
+
+            val_loss += loss.item()
+            val_batches += 1
+
+        val_loss /= max(val_batches, 1)
+        history['val_loss'].append(float(val_loss))
+        scheduler.step(val_loss)
+        print(f"3D GNN Epoch {epoch + 1}, Validation Loss: {val_loss:.4f}")
+
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            stop_counter = 0
+            torch.save(model.state_dict(), checkpoint_path)
+        else:
+            stop_counter += 1
+
+        if stop_counter >= EARLY_STOPPING_PATIENCE:
+            print('3D GNN early stopping triggered.')
+            break
+
+    if os.path.exists(checkpoint_path):
+        model.load_state_dict(torch.load(checkpoint_path, map_location=DEVICE))
+    else:
+        raise FileNotFoundError(f"3D model checkpoint was not saved: {checkpoint_path}")
+
+    return model, history
+
+
+def _collect_3d_predictions(model, dataloader, with_labels=True):
+    """
+    Run 3D GNN inference and collect probabilities, uncertainties, labels, and conformer info.
+    """
+    all_smiles = []
+    all_probs = []
+    all_uncertainties = []
+    all_predictions = []
+    all_targets = []
+    all_infos = []
+
+    model.eval()
+
+    for batched_graph, batched_features, batched_labels, infos in dataloader:
+        if batched_graph is None:
+            continue
+
+        batched_graph = batched_graph.to(DEVICE)
+        batched_features = batched_features.to(DEVICE)
+
+        with torch.no_grad():
+            mean_probs, std_probs = model.predict_with_uncertainty(
+                batched_graph,
+                batched_features,
+                n_passes=MC_DROPOUT_PASSES
+            )
+
+        active_probs = mean_probs[:, 1].detach().cpu().numpy()
+        active_uncertainties = std_probs[:, 1].detach().cpu().numpy()
+        predictions = torch.argmax(mean_probs, dim=1).detach().cpu().numpy()
+
+        for info in infos:
+            canonical = (info or {}).get('CanonicalSMILES')
+            all_smiles.append(canonical if canonical else 'NA')
+            all_infos.append(info or {})
+
+        all_probs.extend(active_probs)
+        all_uncertainties.extend(active_uncertainties)
+        all_predictions.extend(predictions)
+
+        if with_labels and batched_labels is not None:
+            all_targets.extend(batched_labels.detach().cpu().numpy())
+
+    return {
+        'smiles': all_smiles,
+        'probabilities': np.asarray(all_probs, dtype=float),
+        'uncertainties': np.asarray(all_uncertainties, dtype=float),
+        'predictions': np.asarray(all_predictions, dtype=int),
+        'targets': np.asarray(all_targets, dtype=int) if all_targets else None,
+        'infos': all_infos,
+    }
+
+
+def _save_3d_results_artifacts(job_dir, rows, metrics_rows=None, history=None, prefix='gnn3d'):
+    """
+    Save result CSV, summary JSON, and basic plots for 3D GNN jobs.
+    """
+    os.makedirs(job_dir, exist_ok=True)
+    plots_dir = os.path.join(job_dir, 'plots')
+    os.makedirs(plots_dir, exist_ok=True)
+
+    results_df = pd.DataFrame(rows)
+    results_csv_path = os.path.join(job_dir, f'{prefix}_results.csv')
+    results_df.to_csv(results_csv_path, index=False)
+
+    display_df = pd.DataFrame()
+    if not results_df.empty:
+        display_df = results_df.copy()
+        if 'SMILES' in display_df.columns:
+            display_df = display_df.rename(columns={'SMILES': 'Compound'})
+        if 'ActiveProbability' in display_df.columns:
+            display_df = display_df.rename(columns={'ActiveProbability': 'Probability'})
+        if 'Priority3DScore' in display_df.columns:
+            display_df = display_df.rename(columns={'Priority3DScore': 'PriorityScore'})
+
+    probability_plot = None
+    top_hits_plot = None
+    drug_space_plot = None
+    training_plot = None
+
+    if not display_df.empty and 'Probability' in display_df.columns:
+        probability_plot = os.path.join(plots_dir, f'{prefix}_probability_hist.png')
+        top_hits_plot = os.path.join(plots_dir, f'{prefix}_top_hits.png')
+        plot_probability_distribution(display_df, probability_plot, title='3D GNN Probability Distribution')
+        plot_top_hits_bar(display_df, top_hits_plot, score_col='PriorityScore', title='Top 3D GNN Ranked Hits')
+
+        if 'Compound' in display_df.columns:
+            drug_space_plot = os.path.join(plots_dir, f'{prefix}_drug_space.png')
+            plot_drug_space(display_df[['Compound']], drug_space_plot, title='3D GNN Drug-Likeness Space')
+
+    if history:
+        training_plot = os.path.join(plots_dir, f'{prefix}_training_curve.png')
+        plot_training_history(history, training_plot, title='3D GNN Training History')
+
+    summary = {
+        'rows': int(len(results_df)),
+        'columns': list(map(str, results_df.columns)) if not results_df.empty else [],
+        'metrics': metrics_rows or [],
+        'plots': {
+            'probability_plot': os.path.relpath(probability_plot, job_dir) if probability_plot and os.path.exists(probability_plot) else None,
+            'top_hits_plot': os.path.relpath(top_hits_plot, job_dir) if top_hits_plot and os.path.exists(top_hits_plot) else None,
+            'drug_space_plot': os.path.relpath(drug_space_plot, job_dir) if drug_space_plot and os.path.exists(drug_space_plot) else None,
+            'training_plot': os.path.relpath(training_plot, job_dir) if training_plot and os.path.exists(training_plot) else None,
+        }
+    }
+
+    summary_json_path = os.path.join(job_dir, f'{prefix}_summary.json')
+    with open(summary_json_path, 'w', encoding='utf-8') as f:
+        json.dump(summary, f, indent=2)
+
+    return results_csv_path, summary_json_path, summary
+
+
+def _render_3d_results(job_id, task_type, rows, metrics_rows, summary, results_csv_path):
+    """
+    Render 3D GNN result page.
+    """
+    results_df = pd.DataFrame(rows)
+    if not results_df.empty:
+        results_table = results_df.to_html(
+            classes='table table-striped table-bordered table-hover',
+            index=False
+        )
+        if 'ConformerStatus' in results_df.columns:
+            conformer_summary = results_df['ConformerStatus'].value_counts().to_dict()
+        else:
+            conformer_summary = {}
+    else:
+        results_table = None
+        conformer_summary = {}
+
+    result_rel = os.path.relpath(results_csv_path, os.path.join(app.config['GNN3D_JOBS_DIR'], job_id))
+
+    return render_template(
+        'gnn3d_results.html',
+        job_id=job_id,
+        task_type=task_type,
+        total_rows=len(rows),
+        metrics_rows=metrics_rows,
+        conformer_summary=conformer_summary,
+        summary_data=summary,
+        results_table=results_table,
+        results_download_url=url_for('gnn3d_download', job_id=job_id, filename=result_rel),
+        active_tab='gnn3d'
+    )
+
+
+@app.route('/gnn3d', methods=['GET'])
+def gnn3d_page():
+    return render_template('upload.html', active_tab='gnn3d')
+
+
+@app.route('/gnn3d_train', methods=['POST'])
+def gnn3d_train():
+    if 'gnn3d_train_file' not in request.files:
+        flash('Please upload a 3D GNN training CSV file.', 'error')
+        return render_template('upload.html', active_tab='gnn3d')
+
+    file = request.files['gnn3d_train_file']
+    if not file or not allow_files(file.filename):
+        flash('Please upload a valid CSV file for 3D GNN training.', 'error')
+        return render_template('upload.html', active_tab='gnn3d')
+
+    try:
+        set_seed(RANDOM_SEED)
+        radius_cutoff, num_conformers, forcefield = _get_3d_form_options()
+
+        job_id = f"gnn3d_train_{datetime.now().strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex[:8]}"
+        job_dir = os.path.join(app.config['GNN3D_JOBS_DIR'], job_id)
+        os.makedirs(job_dir, exist_ok=True)
+
+        filename = secure_filename(file.filename) or 'gnn3d_training.csv'
+        uploaded_file_path = os.path.join(job_dir, filename)
+        file.save(uploaded_file_path)
+
+        raw_data = pd.read_csv(uploaded_file_path)
+        data = clean_virtual_screening_training_dataframe(raw_data)
+        smiles = data['SMILES'].tolist()
+        labels = data['Activity'].astype(int).tolist()
+
+        train_indices, val_indices, test_indices = build_train_val_test_indices(smiles, labels)
+
+        training_reference_smiles = [smiles[i] for i in train_indices]
+        pd.DataFrame({'SMILES': training_reference_smiles}).to_csv(
+            GNN3D_REFERENCE_SMILES_PATH,
+            index=False
+        )
+
+        full_dataset = Molecule3DDataset(
+            smiles,
+            labels,
+            radius_cutoff=radius_cutoff,
+            random_seed=RANDOM_SEED,
+            max_attempts=num_conformers,
+            optimize=True,
+            forcefield=forcefield,
+            keep_hydrogens=False
+        )
+
+        train_dataset = [full_dataset[i] for i in train_indices]
+        val_dataset = [full_dataset[i] for i in val_indices]
+        test_dataset = [full_dataset[i] for i in test_indices]
+
+        class_counts = np.bincount(np.array([labels[i] for i in train_indices]), minlength=2)
+        class_weights = len(train_indices) / (2.0 * np.maximum(class_counts, 1))
+        class_weights = torch.tensor(class_weights, dtype=torch.float32, device=DEVICE)
+
+        model = _create_3d_gnn_model(radius_cutoff=radius_cutoff)
+        criterion = nn.CrossEntropyLoss(weight=class_weights)
+        optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            mode='min',
+            factor=0.5,
+            patience=3
+        )
+
+        batch_size = min(GNN3D_TRAIN_BATCH_SIZE, TRAIN_BATCH_SIZE)
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_3d)
+        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_3d)
+        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_3d)
+
+        model, training_history = train_and_evaluate_3d_model(
+            train_loader,
+            val_loader,
+            model,
+            optimizer,
+            criterion,
+            scheduler,
+            checkpoint_path=GNN3D_MODEL_PATH
+        )
+
+        prediction_pack = _collect_3d_predictions(model, test_loader, with_labels=True)
+        probs = prediction_pack['probabilities']
+        uncertainties = prediction_pack['uncertainties']
+        targets = prediction_pack['targets']
+        predictions = prediction_pack['predictions']
+        valid_smiles = prediction_pack['smiles']
+        infos = prediction_pack['infos']
+
+        if len(probs) == 0:
+            flash('No valid 3D conformers remained after filtering.', 'warning')
+            return render_template('upload.html', active_tab='gnn3d')
+
+        accuracy = accuracy_score(targets, predictions) if targets is not None and len(targets) else float('nan')
+        precision = precision_score(targets, predictions, zero_division=0) if targets is not None and len(targets) else float('nan')
+        recall = recall_score(targets, predictions, zero_division=0) if targets is not None and len(targets) else float('nan')
+        f1 = f1_score(targets, predictions, zero_division=0) if targets is not None and len(targets) else float('nan')
+
+        if targets is not None and len(np.unique(targets)) > 1 and len(probs) == len(targets):
+            auc = roc_auc_score(targets, probs)
+            ap = average_precision_score(targets, probs)
+            mcc = matthews_corrcoef(targets, predictions)
+        else:
+            auc = float('nan')
+            ap = float('nan')
+            mcc = float('nan')
+
+        reference_fps = build_reference_fingerprints(training_reference_smiles)
+        rows = build_3d_result_rows(
+            smiles_list=valid_smiles,
+            probabilities=probs,
+            uncertainties=uncertainties,
+            infos=infos,
+            reference_fps=reference_fps,
+            applicability_threshold=APPLICABILITY_DOMAIN_THRESHOLD
+        )
+
+        metrics_rows = [
+            ('Task', '3D GNN training/evaluation'),
+            ('Model Saved', GNN3D_MODEL_PATH),
+            ('Radius Cutoff', f'{radius_cutoff:.2f} Å'),
+            ('Force Field', forcefield),
+            ('Accuracy', f'{accuracy:.4f}' if not np.isnan(accuracy) else 'NA'),
+            ('Precision', f'{precision:.4f}' if not np.isnan(precision) else 'NA'),
+            ('Recall', f'{recall:.4f}' if not np.isnan(recall) else 'NA'),
+            ('F1', f'{f1:.4f}' if not np.isnan(f1) else 'NA'),
+            ('ROC-AUC', f'{auc:.4f}' if not np.isnan(auc) else 'NA'),
+            ('PR-AUC/AP', f'{ap:.4f}' if not np.isnan(ap) else 'NA'),
+            ('MCC', f'{mcc:.4f}' if not np.isnan(mcc) else 'NA'),
+            ('Valid 3D Molecules', str(len(rows))),
+        ]
+
+        results_csv_path, summary_json_path, summary = _save_3d_results_artifacts(
+            job_dir=job_dir,
+            rows=rows,
+            metrics_rows=metrics_rows,
+            history=training_history,
+            prefix='gnn3d_training'
+        )
+
+        flash('Advanced 3D GNN training completed successfully.', 'info')
+        return _render_3d_results(job_id, 'training', rows, metrics_rows, summary, results_csv_path)
+
+    except Exception as e:
+        flash(f'Advanced 3D GNN training failed: {str(e)}', 'error')
+        return render_template('upload.html', active_tab='gnn3d')
+
+
+@app.route('/gnn3d_predict', methods=['POST'])
+def gnn3d_predict():
+    if 'gnn3d_predict_file' not in request.files:
+        flash('Please upload a 3D GNN prediction CSV file.', 'error')
+        return render_template('upload.html', active_tab='gnn3d')
+
+    file = request.files['gnn3d_predict_file']
+    if not file or not allow_files(file.filename):
+        flash('Please upload a valid CSV file for 3D GNN prediction.', 'error')
+        return render_template('upload.html', active_tab='gnn3d')
+
+    try:
+        set_seed(RANDOM_SEED)
+        radius_cutoff, num_conformers, forcefield = _get_3d_form_options()
+
+        if not os.path.exists(GNN3D_MODEL_PATH):
+            flash('Advanced 3D GNN model not found. Please train the 3D model first.', 'error')
+            return render_template('upload.html', active_tab='gnn3d')
+
+        job_id = f"gnn3d_predict_{datetime.now().strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex[:8]}"
+        job_dir = os.path.join(app.config['GNN3D_JOBS_DIR'], job_id)
+        os.makedirs(job_dir, exist_ok=True)
+
+        filename = secure_filename(file.filename) or 'gnn3d_prediction.csv'
+        uploaded_file_path = os.path.join(job_dir, filename)
+        file.save(uploaded_file_path)
+
+        raw_data = pd.read_csv(uploaded_file_path)
+        data = clean_smiles_only_dataframe(raw_data)
+        smiles = data['SMILES'].tolist()
+
+        model = _create_3d_gnn_model(radius_cutoff=radius_cutoff)
+        model.load_state_dict(torch.load(GNN3D_MODEL_PATH, map_location=DEVICE))
+        model.eval()
+
+        dataset = Molecule3DDataset(
+            smiles,
+            labels=[0] * len(smiles),
+            radius_cutoff=radius_cutoff,
+            random_seed=RANDOM_SEED,
+            max_attempts=num_conformers,
+            optimize=True,
+            forcefield=forcefield,
+            keep_hydrogens=False
+        )
+
+        batch_size = min(GNN3D_TRAIN_BATCH_SIZE, TRAIN_BATCH_SIZE)
+        loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_3d)
+
+        prediction_pack = _collect_3d_predictions(model, loader, with_labels=False)
+        probs = prediction_pack['probabilities']
+        uncertainties = prediction_pack['uncertainties']
+        valid_smiles = prediction_pack['smiles']
+        infos = prediction_pack['infos']
+
+        if len(probs) == 0:
+            flash('No valid 3D conformers remained after filtering in prediction.', 'warning')
+            return render_template('upload.html', active_tab='gnn3d')
+
+        reference_fps = []
+        if os.path.exists(GNN3D_REFERENCE_SMILES_PATH):
+            try:
+                ref_df = pd.read_csv(GNN3D_REFERENCE_SMILES_PATH)
+                if 'SMILES' in ref_df.columns:
+                    reference_fps = build_reference_fingerprints(ref_df['SMILES'].dropna().astype(str).tolist())
+            except Exception as ref_error:
+                print(f"Could not load 3D GNN reference SMILES: {ref_error}")
+
+        rows = build_3d_result_rows(
+            smiles_list=valid_smiles,
+            probabilities=probs,
+            uncertainties=uncertainties,
+            infos=infos,
+            reference_fps=reference_fps,
+            applicability_threshold=APPLICABILITY_DOMAIN_THRESHOLD
+        )
+
+        metrics_rows = [
+            ('Task', '3D GNN external prediction'),
+            ('Radius Cutoff', f'{radius_cutoff:.2f} Å'),
+            ('Force Field', forcefield),
+            ('Input Molecules', str(len(smiles))),
+            ('Valid 3D Molecules', str(len(rows))),
+            ('Model Path', GNN3D_MODEL_PATH),
+        ]
+
+        results_csv_path, summary_json_path, summary = _save_3d_results_artifacts(
+            job_dir=job_dir,
+            rows=rows,
+            metrics_rows=metrics_rows,
+            history=None,
+            prefix='gnn3d_prediction'
+        )
+
+        flash('Advanced 3D GNN prediction completed successfully.', 'info')
+        return _render_3d_results(job_id, 'prediction', rows, metrics_rows, summary, results_csv_path)
+
+    except Exception as e:
+        flash(f'Advanced 3D GNN prediction failed: {str(e)}', 'error')
+        return render_template('upload.html', active_tab='gnn3d')
+
+
+@app.route('/gnn3d_download/<job_id>/<path:filename>')
+def gnn3d_download(job_id, filename):
+    relative_path = os.path.join(job_id, filename)
+    try:
+        return safe_send_job_file(
+            app.config['GNN3D_JOBS_DIR'],
+            relative_path,
+            as_attachment=True,
+            download_name=os.path.basename(filename)
+        )
+    except Exception:
+        return abort(404, description='3D GNN file not found.')
 
 
 # =========================
@@ -1126,6 +1797,13 @@ def index():
 
                 train_indices, val_indices, test_indices = build_train_val_test_indices(smiles, labels)
 
+                # Save training reference SMILES for applicability-domain scoring during re-screening.
+                training_reference_smiles = [smiles[i] for i in train_indices]
+                pd.DataFrame({'SMILES': training_reference_smiles}).to_csv(
+                    GNN2D_REFERENCE_SMILES_PATH,
+                    index=False
+                )
+
                 full_dataset = MoleculeDataset(smiles, labels)
                 train_dataset = [full_dataset[i] for i in train_indices]
                 val_dataset = [full_dataset[i] for i in val_indices]
@@ -1135,7 +1813,12 @@ def index():
                 class_weights = len(train_indices) / (2.0 * np.maximum(class_counts, 1))
                 class_weights = torch.tensor(class_weights, dtype=torch.float32, device=DEVICE)
 
-                model = GNN(1, MODEL_HIDDEN_SIZE, 2).to(DEVICE)
+                model = GNN(
+                    ATOM_FEATURE_DIM,
+                    MODEL_HIDDEN_SIZE,
+                    2,
+                    edge_feats=BOND_FEATURE_DIM
+                ).to(DEVICE)
                 criterion = nn.CrossEntropyLoss(weight=class_weights)
                 optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
                 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
@@ -1150,7 +1833,13 @@ def index():
                 test_dataloader = DataLoader(test_dataset, batch_size=TRAIN_BATCH_SIZE, shuffle=False, collate_fn=collate)
 
                 model, training_history = train_and_evaluate_model(
-                    train_dataloader, val_dataloader, model, optimizer, criterion, scheduler
+                    train_dataloader,
+                    val_dataloader,
+                    model,
+                    optimizer,
+                    criterion,
+                    scheduler,
+                    checkpoint_path=GNN2D_MODEL_PATH
                 )
 
                 all_predictions, all_targets = [], []
@@ -1166,6 +1855,8 @@ def index():
                         valid_test_smiles.append(canonical_smiles)
 
                 model.eval()
+                all_uncertainties = []
+
                 for batched_graph, batched_features, batched_labels in test_dataloader:
                     if batched_graph is None:
                         continue
@@ -1175,13 +1866,17 @@ def index():
                     batched_labels = batched_labels.to(DEVICE)
 
                     with torch.no_grad():
-                        outputs = model(batched_graph, batched_features)
-                        probabilities = torch.softmax(outputs, dim=1)
+                        mean_probs, std_probs = model.predict_with_uncertainty(
+                            batched_graph,
+                            batched_features,
+                            n_passes=MC_DROPOUT_PASSES
+                        )
 
-                    _, predicted = torch.max(outputs, 1)
+                    predicted = torch.argmax(mean_probs, dim=1)
                     all_predictions.extend(predicted.cpu().numpy())
                     all_targets.extend(batched_labels.cpu().numpy())
-                    all_probabilities.extend(probabilities.cpu().numpy())
+                    all_probabilities.extend(mean_probs.cpu().numpy())
+                    all_uncertainties.extend(std_probs[:, 1].cpu().numpy())
 
                 all_probabilities = np.array(all_probabilities)
                 true_labels = np.array(all_targets)
@@ -1191,7 +1886,15 @@ def index():
                     return render_template('upload.html', active_tab='virtual_screening')
 
                 class_1_probs = all_probabilities[:, 1]
-                valid_test_smiles, class_1_probs, true_labels, all_predictions = align_screening_arrays(valid_test_smiles, class_1_probs, true_labels, np.asarray(all_predictions))
+                all_uncertainties = np.asarray(all_uncertainties)
+
+                valid_test_smiles, class_1_probs, true_labels, all_predictions = align_screening_arrays(
+                    valid_test_smiles,
+                    class_1_probs,
+                    true_labels,
+                    np.asarray(all_predictions)
+                )
+                all_uncertainties = all_uncertainties[:len(valid_test_smiles)]
 
                 accuracy = accuracy_score(true_labels, all_predictions) if len(true_labels) else float('nan')
                 precision = precision_score(true_labels, all_predictions, zero_division=0) if len(true_labels) else float('nan')
@@ -1210,9 +1913,24 @@ def index():
                     auc = float('nan')
                     print("AUC: N/A (only one class present in evaluation labels)")
 
+                reference_fps = build_reference_fingerprints(training_reference_smiles)
+                app_sims = [
+                    max_tanimoto_similarity(smi, reference_fps)
+                    for smi in valid_test_smiles
+                ]
+
                 full_probability_df = pd.DataFrame({
                     'Compound': valid_test_smiles,
-                    'Probability': class_1_probs
+                    'Probability': class_1_probs,
+                    'Uncertainty': all_uncertainties,
+                    'ApplicabilitySimilarity': app_sims,
+                    'ApplicabilityDomain': [
+                        applicability_domain_label(
+                            sim,
+                            inside_threshold=APPLICABILITY_DOMAIN_THRESHOLD
+                        )
+                        for sim in app_sims
+                    ]
                 })
                 full_probability_df = add_priority_scores(full_probability_df)
 
@@ -1485,17 +2203,42 @@ def rescreening():
 
         set_seed(RANDOM_SEED)
 
-        model = GNN(1, MODEL_HIDDEN_SIZE, 2).to(DEVICE)
-        model.load_state_dict(torch.load(os.path.join(app.root_path, "best_model.pth"), map_location=DEVICE))
+        if not os.path.exists(GNN2D_MODEL_PATH):
+            flash(
+                'Enhanced 2D GNN model not found. Please train the virtual screening model first.',
+                'error'
+            )
+            return render_template('upload.html', active_tab='virtual_screening')
+
+        model = GNN(
+            ATOM_FEATURE_DIM,
+            MODEL_HIDDEN_SIZE,
+            2,
+            edge_feats=BOND_FEATURE_DIM
+        ).to(DEVICE)
+        model.load_state_dict(torch.load(GNN2D_MODEL_PATH, map_location=DEVICE))
         model.eval()
 
         raw_new_data = pd.read_csv(uploaded_file_path)
         new_data = clean_smiles_only_dataframe(raw_new_data)
         new_smiles = new_data["SMILES"].tolist()
+
+        reference_fps = []
+        if os.path.exists(GNN2D_REFERENCE_SMILES_PATH):
+            try:
+                ref_df = pd.read_csv(GNN2D_REFERENCE_SMILES_PATH)
+                if 'SMILES' in ref_df.columns:
+                    reference_fps = build_reference_fingerprints(
+                        ref_df['SMILES'].dropna().astype(str).tolist()
+                    )
+            except Exception as ref_error:
+                print(f"Could not load GNN reference SMILES: {ref_error}")
+
         new_dataset = MoleculeDataset(new_smiles, [0] * len(new_smiles))
         new_dataloader = DataLoader(new_dataset, batch_size=TRAIN_BATCH_SIZE, shuffle=False, collate_fn=collate)
 
         all_probabilities = []
+        all_uncertainties = []
         valid_new_smiles = []
 
         for i in range(len(new_smiles)):
@@ -1506,12 +2249,19 @@ def rescreening():
         for batched_graph, batched_features, _ in new_dataloader:
             if batched_graph is None:
                 continue
+
             batched_graph = batched_graph.to(DEVICE)
             batched_features = batched_features.to(DEVICE)
+
             with torch.no_grad():
-                outputs = model(batched_graph, batched_features)
-                probabilities = torch.softmax(outputs, dim=1)
-            all_probabilities.extend(probabilities.cpu().numpy())
+                mean_probs, std_probs = model.predict_with_uncertainty(
+                    batched_graph,
+                    batched_features,
+                    n_passes=MC_DROPOUT_PASSES
+                )
+
+            all_probabilities.extend(mean_probs.cpu().numpy())
+            all_uncertainties.extend(std_probs[:, 1].cpu().numpy())
 
         all_probabilities = np.array(all_probabilities)
 
@@ -1521,10 +2271,25 @@ def rescreening():
 
         class_1_probs = all_probabilities[:, 1]
         valid_new_smiles, class_1_probs = align_smiles_and_probabilities(valid_new_smiles, class_1_probs)
+        all_uncertainties = np.asarray(all_uncertainties)[:len(valid_new_smiles)]
+
+        app_sims = [
+            max_tanimoto_similarity(smi, reference_fps)
+            for smi in valid_new_smiles
+        ]
 
         full_probability_df = pd.DataFrame({
             'Compound': valid_new_smiles,
-            'Probability': class_1_probs
+            'Probability': class_1_probs,
+            'Uncertainty': all_uncertainties,
+            'ApplicabilitySimilarity': app_sims,
+            'ApplicabilityDomain': [
+                applicability_domain_label(
+                    sim,
+                    inside_threshold=APPLICABILITY_DOMAIN_THRESHOLD
+                )
+                for sim in app_sims
+            ]
         })
         full_probability_df = add_priority_scores(full_probability_df)
 
@@ -3405,6 +4170,8 @@ if __name__ == "__main__":
         app.config['ADMET_JOBS_DIR'],
         app.config['QSAR_JOBS_DIR'],
         app.config['QSAR_MODELS_DIR'],
+        app.config['GNN_MODELS_DIR'],
+        app.config['GNN3D_JOBS_DIR'],
         app.config['HIT_TO_LEAD_JOBS_DIR'],
         app.config['PLIP_JOBS_DIR'],
         app.config['AUTOGROW4_DIR'],
