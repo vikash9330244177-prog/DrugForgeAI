@@ -541,7 +541,10 @@
                         <a class="nav-link{% if active_tab|default('home') == 'home' %} active{% endif %}" id="pills-home-tab" data-toggle="pill" href="#pills-home" role="tab" aria-controls="pills-home" aria-selected="true">Home</a>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <a class="nav-link{% if active_tab == 'virtual_screening' %} active{% endif %}" id="pills-virtual-screening-tab" data-toggle="pill" href="#pills-virtual-screening" role="tab" aria-controls="pills-virtual-screening" aria-selected="false">Ligand Prioritization</a>
+                        <a class="nav-link{% if active_tab == 'virtual_screening' %} active{% endif %}" id="pills-virtual-screening-tab" data-toggle="pill" href="#pills-virtual-screening" role="tab" aria-controls="pills-virtual-screening" aria-selected="false">Enhanced 2D GNN</a>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <a class="nav-link{% if active_tab == 'gnn3d' %} active{% endif %}" id="pills-gnn3d-tab" data-toggle="pill" href="#pills-gnn3d" role="tab" aria-controls="pills-gnn3d" aria-selected="false">Advanced 3D GNN</a>
                     </li>
                     <li class="nav-item" role="presentation">
                         <a class="nav-link" id="pills-qsar-tab" data-toggle="pill" href="#pills-qsar" role="tab" aria-controls="pills-qsar" aria-selected="false">QSAR</a>
@@ -582,7 +585,8 @@
                         </p>
                         <div class="text-center mt-4">
                             <a href="#pills-instructions" class="btn btn-info btn-lg" role="tab" data-toggle="pill">Learn How to Use</a>
-                            <a href="#pills-virtual-screening" class="btn btn-primary btn-lg" role="tab" data-toggle="pill">Get Started</a>
+                            <a href="#pills-virtual-screening" class="btn btn-primary btn-lg" role="tab" data-toggle="pill">Enhanced 2D GNN</a>
+                            <a href="#pills-gnn3d" class="btn btn-success btn-lg" role="tab" data-toggle="pill">Advanced 3D GNN</a>
                         </div>
                     </div>
 
@@ -644,20 +648,20 @@
                     <div class="row">
                         <div class="col-md-4">
                             <div class="feature-box">
-                                <h3>Graph Neural Network-Based Ligand Prioritization</h3>
-                                <p>Streamline drug discovery with a graph neural network workflow for rapid ligand prioritization.</p>
+                                <h3>Enhanced 2D Graph Neural Network Screening</h3>
+                                <p>Screen ligands using rich atom/bond features, scaffold-aware validation, attention pooling, uncertainty, and applicability-domain scoring.</p>
                             </div>
                         </div>
                         <div class="col-md-4">
                             <div class="feature-box">
-                                <h3>Descriptor Analysis</h3>
-                                <p>Analyze molecular descriptors to estimate pharmacological behavior and drug-likeness.</p>
+                                <h3>Advanced 3D GNN Screening</h3>
+                                <p>Use conformer-based molecular geometry, distance-aware graph learning, and 3D priority scoring for more accurate ligand ranking.</p>
                             </div>
                         </div>
                         <div class="col-md-4">
                             <div class="feature-box">
-                                <h3>Re-screening</h3>
-                                <p>Refine ligand selection iteratively by evaluating updated libraries against trained models.</p>
+                                <h3>Uncertainty-Aware Re-screening</h3>
+                                <p>Re-rank external libraries with active probability, confidence, applicability-domain, and drug-likeness scores.</p>
                             </div>
                         </div>
                     </div>
@@ -705,26 +709,26 @@
                     </div>
                 </div>
 
-                <!-- Ligand Prioritization -->
+                <!-- Enhanced 2D GNN Screening -->
                 <div class="tab-pane fade{% if active_tab == 'virtual_screening' %} show active{% endif %}" id="pills-virtual-screening" role="tabpanel" aria-labelledby="pills-virtual-screening-tab">
                     <div class="container">
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="form-section">
                                     <form method="POST" enctype="multipart/form-data">
-                                        <h2 class="mb-3">Upload CSV File</h2>
+                                        <h2 class="mb-3">Enhanced 2D GNN Training</h2>
                                         <div class="form-group">
-                                            <label for="file" class="form-label">Select a CSV file containing active and inactive (decoy) molecules</label>
+                                            <label for="file" class="form-label">Select a CSV file containing SMILES and Activity columns for improved 2D GNN training</label>
                                             <a href="{{ url_for('static', filename='Example1.csv') }}" download="Example1.csv">(Example)</a>
                                             <input type="file" name="file" id="file" accept=".csv" class="form-control-file" required>
                                         </div>
-                                        <button type="submit" class="btn btn-primary">Upload</button>
+                                        <button type="submit" class="btn btn-primary">Train Enhanced 2D GNN</button>
                                     </form>
                                 </div>
 
                                 {% if compounds_table or clusters_table %}
                                     <div class="result-panel">
-                                        <h3 class="result-section-title">Ligand Prioritization Results</h3>
+                                        <h3 class="result-section-title">Enhanced 2D GNN Results</h3>
                                         <div class="download-stack mb-3">
                                             {% if final_compounds_filename %}
                                                 <a href="{{ url_for('downloads', filename=final_compounds_filename) }}" class="btn btn-info btn-sm">Download Ranked Hits CSV</a>
@@ -807,20 +811,20 @@
                             <div class="col-md-6">
                                 <div class="form-section">
                                     <div class="col-md-12 p-0">
-                                        <h2 class="mb-3">Rescreening</h2>
+                                        <h2 class="mb-3">Enhanced 2D GNN Re-screening</h2>
                                         <form action="{{ url_for('rescreening') }}" method="post" enctype="multipart/form-data">
                                             <div class="form-group">
-                                                <label for="rescreen_file" class="form-label">Upload compound SMILES notations</label>
+                                                <label for="rescreen_file" class="form-label">Upload new compound library with SMILES column</label>
                                                 <a href="{{ url_for('static', filename='Example2.csv') }}" download="Example2.csv">(Example)</a>
                                                 <input type="file" name="file" id="rescreen_file" accept=".csv" class="form-control-file" required>
                                             </div>
-                                            <button type="submit" class="btn btn-primary">Re-screen</button>
+                                            <button type="submit" class="btn btn-primary">Run Enhanced 2D Re-screening</button>
                                         </form>
                                     </div>
 
                                     {% if success %}
                                         <div class="result-panel">
-                                            <h3 class="result-section-title">Re-screening Results</h3>
+                                            <h3 class="result-section-title">Enhanced 2D GNN Re-screening Results</h3>
                                             <div class="download-stack">
                                                 {% if sdf_zip_file %}
                                                     <a href="{{ url_for('download_sdf_zip', filename=sdf_zip_file) }}" class="btn btn-success">Download SDF ZIP</a>
@@ -842,7 +846,7 @@
 
                                         {% if pca_plot_file_path or tsne_plot_file_path or umap_plot_file_path %}
                                             <div class="mt-4">
-                                                <h3 class="mb-3 result-section-title">Re-screening Embedding Visualization Plots</h3>
+                                                <h3 class="mb-3 result-section-title">Enhanced 2D GNN Embedding Visualization Plots</h3>
                                                 <div class="row plot-grid">
                                                     {% if pca_plot_file_path %}
                                                         <div class="col-md-4 mb-4">
@@ -950,6 +954,110 @@
                                                 {% endif %}
                                             </div>
                                         {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Advanced 3D GNN Screening -->
+                <div class="tab-pane fade{% if active_tab == 'gnn3d' %} show active{% endif %}" id="pills-gnn3d" role="tabpanel" aria-labelledby="pills-gnn3d-tab">
+                    <div class="form-section">
+                        <h2 class="mb-3">Advanced 3D GNN Screening</h2>
+                        <p>
+                            This module is designed for conformer-based ligand screening. It will use RDKit 3D conformer generation,
+                            geometry optimization, distance-aware molecular graphs, EGNN/SchNet-style message passing, attention pooling,
+                            uncertainty-aware prediction, applicability-domain checking, and 3D priority scoring.
+                        </p>
+
+                        <div class="module-note">
+                            <strong>Recommended input:</strong>
+                            <ul>
+                                <li><strong>Training CSV:</strong> must contain <strong>SMILES</strong> and <strong>Activity</strong> columns.</li>
+                                <li><strong>Prediction CSV:</strong> must contain a <strong>SMILES</strong> column.</li>
+                                <li>3D conformer generation is slower than 2D GNN screening but can capture geometry-dependent molecular patterns.</li>
+                            </ul>
+                        </div>
+
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <div class="form-section">
+                                    <h3 class="mb-3">Train Advanced 3D GNN</h3>
+                                    <form method="POST" action="/gnn3d_train" enctype="multipart/form-data">
+                                        <div class="form-group">
+                                            <label for="gnn3d_train_file">Training CSV File</label>
+                                            <input type="file" name="gnn3d_train_file" id="gnn3d_train_file" accept=".csv" class="form-control-file" required>
+                                            <small class="form-text text-muted">Required columns: SMILES and Activity.</small>
+                                        </div>
+
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="form-group">
+                                                    <label for="gnn3d_num_conformers">Number of Conformers</label>
+                                                    <input type="number" name="num_conformers" id="gnn3d_num_conformers" class="form-control" value="1" min="1" max="10" step="1" required>
+                                                </div>
+                                            </div>
+
+                                            <div class="col-md-6">
+                                                <div class="form-group">
+                                                    <label for="gnn3d_radius_cutoff">3D Edge Cutoff (Å)</label>
+                                                    <input type="number" name="radius_cutoff" id="gnn3d_radius_cutoff" class="form-control" value="5.0" min="3.0" max="8.0" step="0.5" required>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="gnn3d_optimizer">Geometry Optimization</label>
+                                            <select name="optimizer" id="gnn3d_optimizer" class="form-control" required>
+                                                <option value="mmff">MMFF</option>
+                                                <option value="uff">UFF</option>
+                                            </select>
+                                        </div>
+
+                                        <button type="submit" class="btn btn-primary">Train Advanced 3D GNN</button>
+                                    </form>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="form-section">
+                                    <h3 class="mb-3">Predict with Advanced 3D GNN</h3>
+                                    <form method="POST" action="/gnn3d_predict" enctype="multipart/form-data">
+                                        <div class="form-group">
+                                            <label for="gnn3d_predict_file">Prediction CSV File</label>
+                                            <input type="file" name="gnn3d_predict_file" id="gnn3d_predict_file" accept=".csv" class="form-control-file" required>
+                                            <small class="form-text text-muted">Required column: SMILES.</small>
+                                        </div>
+
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="form-group">
+                                                    <label for="gnn3d_predict_conformers">Number of Conformers</label>
+                                                    <input type="number" name="num_conformers" id="gnn3d_predict_conformers" class="form-control" value="1" min="1" max="10" step="1" required>
+                                                </div>
+                                            </div>
+
+                                            <div class="col-md-6">
+                                                <div class="form-group">
+                                                    <label for="gnn3d_predict_cutoff">3D Edge Cutoff (Å)</label>
+                                                    <input type="number" name="radius_cutoff" id="gnn3d_predict_cutoff" class="form-control" value="5.0" min="3.0" max="8.0" step="0.5" required>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <button type="submit" class="btn btn-success">Run 3D GNN Prediction</button>
+                                    </form>
+                                </div>
+
+                                <div class="soft-note">
+                                    <span class="badge-soft">3D Conformer</span>
+                                    <span class="badge-soft">Distance-Aware Edges</span>
+                                    <span class="badge-soft">Uncertainty</span>
+                                    <span class="badge-soft">Applicability Domain</span>
+                                    <div class="mt-2">
+                                        3D GNN outputs will include active probability, uncertainty, QED/drug-likeness,
+                                        applicability-domain label, conformer status, and final 3D priority score.
                                     </div>
                                 </div>
                             </div>
@@ -1516,7 +1624,8 @@
                         <h3>Getting Started:</h3>
                         <ul>
                             <li><strong>Upload Your Data:</strong> Begin by uploading your protein files and ligand datasets. DrugForge AI accepts PDB files for proteins and CSV files for ligand screening. Ensure that ligand files contain the required columns such as <strong>SMILES</strong> and <strong>Activity</strong> where applicable.</li>
-                            <li><strong>Ligand Prioritization:</strong> Use the graph neural network model to rank ligands and identify promising candidates based on predicted activity.</li>
+                            <li><strong>Enhanced 2D GNN Screening:</strong> Use the improved graph neural network model with rich atom/bond features, attention pooling, uncertainty scoring, and applicability-domain checking to rank ligands.</li>
+                            <li><strong>Advanced 3D GNN Screening:</strong> Use conformer-based molecular geometry and distance-aware graph learning for more accurate ligand prioritization when 3D molecular shape is important.</li>
                             <li><strong>Protein Refinement:</strong> Upload your protein structure for refinement in order to improve the quality of downstream docking analysis.</li>
                             <li><strong>Molecular Docking:</strong> Use the Molecular Docking tab to perform focused docking with manually specified search box coordinates and dimensions.</li>
                             <li><strong>Blind Docking:</strong> Use the Blind Docking tab to perform whole-protein exploration and multi-site docking analysis.</li>
@@ -1715,6 +1824,8 @@
                 $('#pills-blind-docking-tab').tab('show');
             } else if (activeTab === 'admet') {
                 $('#pills-admet-tab').tab('show');
+            } else if (activeTab === 'gnn3d') {
+                $('#pills-gnn3d-tab').tab('show');
             } else if (activeTab === 'qsar') {
                 $('#pills-qsar-tab').tab('show');
             } else if (activeTab === 'hit_to_lead') {
