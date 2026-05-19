@@ -1,18 +1,38 @@
-Flask
-Werkzeug
-requests
-numpy
-pandas
-matplotlib
-scikit-learn
-joblib
-umap-learn
-mdtraj
-biopython
-rdkit
-torch
-dgl
-openmm
-pdbfixer-wheel
-admet-ai
-deepchem
+# =========================
+# DrugForge AI requirements
+# Enhanced 2D GNN + Advanced 3D GNN
+# =========================
+
+# Web framework
+Flask>=2.3.0
+Werkzeug>=2.3.0
+gunicorn>=21.2.0
+
+# Core scientific stack
+numpy>=1.24.0
+pandas>=2.0.0
+scipy>=1.10.0
+matplotlib>=3.7.0
+scikit-learn>=1.3.0
+joblib>=1.3.0
+
+# Deep learning
+torch>=2.1.0
+dgl>=1.1.0
+
+# Dimensionality reduction / visualization
+umap-learn>=0.5.5
+
+# Cheminformatics
+rdkit>=2023.9.1
+
+# Molecular dynamics / protein preparation
+mdtraj>=1.9.9
+openmm>=8.0.0
+pdbfixer>=1.9.0
+
+# HTTP / API utilities
+requests>=2.31.0
+
+# Optional but useful for robust file handling
+tqdm>=4.66.0
